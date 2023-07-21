@@ -3,11 +3,10 @@
 randomize=0
 
 cd ..
-g++ ./src/search_ivf.cpp -O3 -o ./src/search_ivf -I ./src/
-
-path=./data/
-result_path=./results
 data='gist'
+data_path=/home/DATA/vector_data/${data}
+index_path=/home/DATA/centroid_data/${data}
+result_path=./results
 C=4096
 K=100
 
@@ -25,13 +24,13 @@ else
 fi
 
 res="${result_path}/${data}_IVF${C}_${randomize}.log"
-index="${path}/${data}/${data}_ivf_${C}_${randomize}.index"
+index="${index_path}/${data}_ivf_${C}_${randomize}.index"
 
-query="${path}/${data}/${data}_query.fvecs"
-gnd="${path}/${data}/${data}_groundtruth.ivecs"
-trans="${path}/${data}/O.fvecs"
+query="${data_path}/${data}_query.fvecs"
+gnd="${data_path}/${data}_groundtruth.ivecs"
+trans="${data_path}/O.fvecs"
 
 
-./src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K}
+./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K}
 
 done

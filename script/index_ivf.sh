@@ -1,6 +1,5 @@
 
 cd ..
-g++ -o ./src/index_ivf ./src/index_ivf.cpp -I ./src/ -O3
 
 C=4096
 data='gist'
@@ -10,8 +9,8 @@ do
 
 echo "Indexing - ${data}"
 
-data_path=./data/${data}
-index_path=./data/${data}
+data_path=/home/DATA/vector_data/${data}
+index_path=/home/DATA/centroid_data/${data}
 
 if [ $adaptive == "0" ] # raw vectors 
 then
@@ -26,6 +25,6 @@ fi
 index_file="${index_path}/${data}_ivf_${C}_${adaptive}.index"
 
 
-./src/index_ivf -d $data_file -c $centroid_file -i $index_file -a $adaptive
+./cmake-build-debug/src/index_ivf -d $data_file -c $centroid_file -i $index_file -a $adaptive
 
 done

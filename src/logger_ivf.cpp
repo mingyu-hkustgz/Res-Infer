@@ -26,7 +26,7 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
 
     vector<int> nprobes;
     nprobes.push_back(100);
-    
+
     for(auto nprobe:nprobes){
         total_time=0;
         adsampling::clear();
@@ -48,7 +48,7 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
         }
         float time_us_per_query = total_time / Q.n + rotation_time;
         float recall = 1.0f * correct / (Q.n * k);
-        
+
         // (Search Parameter, Recall, Average Time/Query(us), Total Dimensionality)
         cout << nprobe << " " << recall * 100.00 << " " << time_us_per_query << " " << adsampling::tot_dimension << endl;
     }
@@ -57,22 +57,22 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
 int main(int argc, char * argv[]) {
 
     const struct option longopts[] ={
-        // General Parameter
-        {"help",                        no_argument,       0, 'h'}, 
+            // General Parameter
+            {"help",                        no_argument,       0, 'h'},
 
-        // Query Parameter 
-        {"randomized",                  required_argument, 0, 'd'},
-        {"K",                           required_argument, 0, 'k'},
-        {"epsilon0",                    required_argument, 0, 'e'},
-        {"delta_d",                     required_argument, 0, 'p'},
+            // Query Parameter
+            {"randomized",                  required_argument, 0, 'd'},
+            {"K",                           required_argument, 0, 'k'},
+            {"epsilon0",                    required_argument, 0, 'e'},
+            {"delta_d",                     required_argument, 0, 'p'},
 
-        // Indexing Path 
-        {"dataset",                     required_argument, 0, 'n'},
-        {"index_path",                  required_argument, 0, 'i'},
-        {"query_path",                  required_argument, 0, 'q'},
-        {"groundtruth_path",            required_argument, 0, 'g'},
-        {"result_path",                 required_argument, 0, 'r'},
-        {"transformation_path",         required_argument, 0, 't'},
+            // Indexing Path
+            {"dataset",                     required_argument, 0, 'n'},
+            {"index_path",                  required_argument, 0, 'i'},
+            {"query_path",                  required_argument, 0, 'q'},
+            {"groundtruth_path",            required_argument, 0, 'g'},
+            {"result_path",                 required_argument, 0, 'r'},
+            {"transformation_path",         required_argument, 0, 't'},
     };
 
     int ind;
@@ -97,13 +97,13 @@ int main(int argc, char * argv[]) {
                 break;
             case 'k':
                 if(optarg)subk = atoi(optarg);
-                break;  
+                break;
             case 'e':
                 if(optarg)adsampling::epsilon0 = atof(optarg);
                 break;
             case 'p':
                 if(optarg)adsampling::delta_d = atoi(optarg);
-                break;              
+                break;
             case 'i':
                 if(optarg)strcpy(index_path, optarg);
                 break;
@@ -124,7 +124,7 @@ int main(int argc, char * argv[]) {
                 break;
         }
     }
-    
+
     Matrix<float> Q(query_path);
     Matrix<unsigned> G(groundtruth_path);
     Matrix<float> P(transformation_path);
@@ -136,7 +136,7 @@ int main(int argc, char * argv[]) {
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         adsampling::D = Q.d;
     }
-    
+
     IVF ivf;
     ivf.load(index_path);
     test(Q, G, ivf, subk);

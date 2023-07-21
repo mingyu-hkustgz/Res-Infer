@@ -2,7 +2,26 @@
 #include <chrono>
 #include <queue>
 #include <unordered_set>
-
+#include <vector>
+#include <iostream>
+#include <cstdlib>
+#include <cmath>
+#include <algorithm>
+#include <fstream>
+#include <unordered_map>
+#include <cassert>
+#include <chrono>
+#include <cstring>
+#include <random>
+#include <sstream>
+#include <boost/dynamic_bitset.hpp>
+#include <boost/unordered_map.hpp>
+#include <stack>
+#include <x86intrin.h>
+#include <malloc.h>
+#include <set>
+#include <cmath>
+#include <queue>
 #ifndef WIN32
 #include<sys/resource.h>
 #endif
@@ -163,4 +182,58 @@ size_t getCurrentRSS() {
     /* AIX, BSD, Solaris, and Unknown OS ------------------------ */
     return (size_t)0L;          /* Unsupported. */
 #endif
+}
+
+void load_float_data(const char *filename, float *&data, unsigned &num,
+                     unsigned &dim) {  // load data with sift10K pattern
+    std::ifstream in(filename, std::ios::binary);
+    if (!in.is_open()) {
+        std::cout << "open file error" << std::endl;
+        exit(-1);
+    }
+    in.read((char *) &dim, 4);
+    std::cout << "data dimension: " << dim << std::endl;
+    in.seekg(0, std::ios::end);
+    std::ios::pos_type ss = in.tellg();
+    size_t fsize = (size_t) ss;
+    num = (unsigned) (fsize / (dim + 1) / 4);
+    data = new float[num * dim * sizeof(float)];
+
+    in.seekg(0, std::ios::beg);
+    for (size_t i = 0; i < num; i++) {
+        in.seekg(4, std::ios::cur);
+        in.read((char *) (data + i * dim), dim * 4);
+    }
+    in.close();
+}
+
+void load_int_data(const char *filename, int *&data, unsigned &num,
+                   unsigned &dim) {  // load data with sift10K pattern
+    std::ifstream in(filename, std::ios::binary);
+    if (!in.is_open()) {
+        std::cout << "open file error" << std::endl;
+        exit(-1);
+    }
+    in.read((char *) &dim, 4);
+    std::cout << "data dimension: " << dim << std::endl;
+    in.seekg(0, std::ios::end);
+    std::ios::pos_type ss = in.tellg();
+    size_t fsize = (size_t) ss;
+    num = (unsigned) (fsize / (dim + 1) / 4);
+    data = new int[num * dim * sizeof(int)];
+
+    in.seekg(0, std::ios::beg);
+    for (size_t i = 0; i < num; i++) {
+        in.seekg(4, std::ios::cur);
+        in.read((char *) (data + i * dim), dim * 4);
+    }
+    in.close();
+}
+
+float naive_l2_dist_calc(const float *q, const float *p, const unsigned &dim) {
+    float ans = 0.0;
+    for (unsigned i = 0; i < dim; i++) {
+        ans += (p[i] - q[i]) * (p[i] - q[i]);
+    }
+    return ans;
 }

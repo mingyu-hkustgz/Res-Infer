@@ -2,12 +2,11 @@
 
 cd ..
 
-g++ ./src/search_hnsw.cpp -O3 -o ./src/search_hnsw -I ./src/
-
-path=./data/
+data='gist'
+data_path=/home/DATA/vector_data/${data}
+index_path=/home/DATA/graph_data/hnsw
 result_path=./results/
 
-data='gist'
 ef=500
 M=16
 
@@ -16,22 +15,22 @@ do
 if [ $randomize == "1" ]
 then 
     echo "HNSW++"
-    index="${path}/${data}/O${data}_ef${ef}_M${M}.index"
+    index="${index_path}/O${data}_ef${ef}_M${M}.index"
 elif [ $randomize == "2" ]
 then 
     echo "HNSW+"
-    index="${path}/${data}/O${data}_ef${ef}_M${M}.index"
+    index="${index_path}/O${data}_ef${ef}_M${M}.index"
 else
     echo "HNSW"
-    index="${path}/${data}/${data}_ef${ef}_M${M}.index"    
+    index="${index_path}/${data}_ef${ef}_M${M}.index"
 fi
 
 res="${result_path}/${data}_ef${ef}_M${M}_${randomize}.log"
-query="${path}/${data}/${data}_query.fvecs"
-gnd="${path}/${data}/${data}_groundtruth.ivecs"
-trans="${path}/${data}/O.fvecs"
+query="${data_path}/${data}_query.fvecs"
+gnd="${data_path}/${data}_groundtruth.ivecs"
+trans="${data_path}/O.fvecs"
 
-./src/search_hnsw -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} 
+./cmake-build-debug/src/search_hnsw -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans}
 
 done
 

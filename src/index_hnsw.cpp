@@ -7,7 +7,6 @@
 #include "matrix.h"
 #include "utils.h"
 #include "hnswlib/hnswlib.h"
-
 using namespace std;
 using namespace hnswlib;
 
@@ -69,11 +68,17 @@ int main(int argc, char * argv[]) {
 
     L2Space l2space(D);
     HierarchicalNSW<float>* appr_alg = new HierarchicalNSW<float> (&l2space, N, M, efConstruction);
-
-    for(int i=0;i<N;i++){
+    appr_alg->addPoint(X->data , 0);
+    unsigned check_tag = 1;
+#pragma omp parallel for schedule(dynamic, 80)
+    for(int i=1;i<N;i++){
         appr_alg->addPoint(X->data + i * D, i);
-        if(i % report == 0){
-            cerr << "Processing - " << i << " / " << N << endl;
+#pragma omp critical
+        {
+            check_tag++;
+            if(check_tag % report == 0){
+                cerr << "Processing - " << check_tag << " / " << N << endl;
+            }
         }
     }
 

@@ -13,7 +13,7 @@ Note that in the whole algorithm we do not calculate the square root of the dist
 #include <iostream>
 
 using namespace std;
-
+#ifndef AD_SAMPLING
 namespace adsampling{
 
 unsigned int D = 960; // The dimensionality of the dataset. 
@@ -95,4 +95,5 @@ float sqr_dist(float* a, float* b, int D){
     }    
     return ret;
 }
-
+#define AD_SAMPLING
+#endif //AD_SAMPLING

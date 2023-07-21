@@ -42,6 +42,7 @@ public:
     ~IVF();
 
     ResultHeap search(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
+    std::vector<std::tuple<unsigned, float, float> > search_logger(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
     void save(char* filename);
     void load(char* filename);
 
@@ -65,7 +66,8 @@ IVF::IVF(const Matrix<float> &X, const Matrix<float> &_centroids, int adaptive){
     id    = new size_t [N];
 
     std::vector<size_t> * temp = new std::vector<size_t> [C];
-    
+    unsigned check_point = 0;
+#pragma omp parallel for
     for(int i=0;i<X.n;i++){
         int belong = 0;
         float dist_min = X.dist(i, _centroids, 0);
@@ -76,10 +78,14 @@ IVF::IVF(const Matrix<float> &X, const Matrix<float> &_centroids, int adaptive){
                 belong = j;
             }
         }
-        if(i % 50000 == 0){
-            std::cerr << "Processing - " << i << " / " << X.n  << std::endl;
+#pragma omp critical
+        {
+            check_point++;
+            if(check_point % 50000 == 0){
+                std::cerr << "Processing - " << check_point << " / " << X.n  << std::endl;
+            }
+            temp[belong].push_back(i);
         }
-        temp[belong].push_back(i);
     }
     std::cerr << "Cluster Generated!" << std::endl;
 
@@ -100,7 +106,7 @@ IVF::IVF(const Matrix<float> &X, const Matrix<float> &_centroids, int adaptive){
     L1_data   = new float [N * d + 1];
     res_data  = new float [N * (D - d) + 1];
     centroids = new float [C * D];
-    
+#pragma omp parallel for
     for(int i=0;i<N;i++){
         int x = id[i];
         for(int j=0;j<D;j++){
@@ -218,6 +224,40 @@ ResultHeap IVF::search(float* query, size_t k, size_t nprobe, float distK) const
     delete [] obj;
     return KNNs;
 }
+
+std::vector<std::tuple<unsigned, float, float> > IVF::search_logger(float* query, size_t k, size_t nprobe, float distK) const{
+    // the default value of distK is +inf
+    Result* centroid_dist = new Result [C];
+    std::vector<std::tuple<unsigned ,float, float> > search_logger;
+    // Find out the closest N_{probe} centroids to the query vector.
+    for(int i=0;i<C;i++){
+        centroid_dist[i].first = sqr_dist(query, centroids+i*D, D);
+        centroid_dist[i].second = i;
+    }
+    // Find out the closest N_{probe} centroids to the query vector.
+    std::partial_sort(centroid_dist, centroid_dist + nprobe, centroid_dist + C);
+
+    size_t ncan = 0;
+    for(int i=0;i<nprobe;i++)
+        ncan += len[centroid_dist[i].second];
+    // Scan a few initial dimensions and store the distances.
+    // For IVF (i.e., apply FDScanning), it should be D.
+    std::priority_queue<float> res_queue;
+    for(int i=0;i<nprobe;i++){
+        int cluster_id = centroid_dist[i].second;
+        for(int j=0;j<len[cluster_id];j++){
+            size_t can = start[cluster_id] + j;
+            float tmp_dist = sqr_dist(query, L1_data + can * d, d);
+            if(res_queue.size() < k) res_queue.push(tmp_dist);
+            else if(tmp_dist < res_queue.top()){
+                res_queue.pop();
+                res_queue.push(tmp_dist);
+                search_logger.emplace_back(can, tmp_dist, res_queue.top());
+            }
+        }
+    }
+}
+
 
 
 void IVF::save(char * filename){
