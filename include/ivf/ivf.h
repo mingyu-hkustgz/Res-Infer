@@ -227,7 +227,7 @@ ResultHeap IVF::search(float* query, size_t k, size_t nprobe, float distK) const
 
 std::vector<std::tuple<unsigned, float, float> > IVF::search_logger(float* query, size_t k, size_t nprobe, float distK) const{
     // the default value of distK is +inf
-    Result* centroid_dist = new Result [C];
+    auto* centroid_dist = new Result [C];
     std::vector<std::tuple<unsigned ,float, float> > search_logger;
     // Find out the closest N_{probe} centroids to the query vector.
     for(int i=0;i<C;i++){
@@ -250,12 +250,15 @@ std::vector<std::tuple<unsigned, float, float> > IVF::search_logger(float* query
             float tmp_dist = sqr_dist(query, L1_data + can * d, d);
             if(res_queue.size() < k) res_queue.push(tmp_dist);
             else if(tmp_dist < res_queue.top()){
-                res_queue.pop();
                 res_queue.push(tmp_dist);
-                search_logger.emplace_back(can, tmp_dist, res_queue.top());
+                if(res_queue.size() > k) res_queue.pop();
             }
+            if(res_queue.size()==k)
+                search_logger.emplace_back(id[can], tmp_dist, res_queue.top());
         }
     }
+    delete [] centroid_dist;
+    return search_logger;
 }
 
 

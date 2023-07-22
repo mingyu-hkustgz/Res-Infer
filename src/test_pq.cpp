@@ -1,10 +1,9 @@
 //
-// Created by BLD on 23-7-20.
+// Created by mingyu on 23-7-20.
 //
 #include "utils.h"
 #include "pq.h"
 #include <iostream>
-
 using namespace std;
 
 
@@ -22,21 +21,70 @@ int main(int argc, char **argv) {
     Index_PQ::Quantizer PQ(points_num, dim, data_load);
     PQ.load_product_codebook(argv[4]);
     PQ.encoder_origin_data();
-    std::cout<<endl;
-    for(int i=0;i<100;i++) std::cout<<naive_l2_dist_calc(data_load + i *dim, train_load, dim)<<" ";
-    std::cout<<endl;
 
-    std::cout<<endl;
-    for(int i=0;i<100;i++) std::cout<<naive_l2_dist_calc(data_load + i *dim, test_load, dim)<<" ";
-    std::cout<<endl;
+    std::cout << "PQ test naive l2 distance" << std::endl;
+    std::cout << endl;
+    for (int i = 0; i < 40; i++)
+        std::cout << naive_l2_dist_calc(train_load + i * dim, test_load, dim) << " ";
+    std::cout << endl;
 
     PQ.load_project_matrix(argv[5]);
-    std::cout<<test_num<<std::endl;
-    PQ.project_vector(test_load,1);
-    std::cout<<endl;
-    for(int i=0;i<100;i++) std::cout<<naive_l2_dist_calc(data_load + i *dim, test_load, dim)<<" ";
-    std::cout<<endl;
+    PQ.project_vector(test_load, test_num);
+    std::cout << "PQ test project matrix" << std::endl;
+    std::cout << endl;
+    for (int i = 0; i < 40; i++) std::cout << naive_l2_dist_calc(data_load + i * dim, test_load, dim) << " ";
+    std::cout << endl;
 
+    std::cout << "PQ test product dist and look-up table" << std::endl;
+    std::cout << dim << endl;
+    double res = 0.0;
+    for (int i = 0; i < 40; i++) {
+        PQ.calc_dist_map(test_load);
+        std::cout << PQ.naive_product_map_dist(i) << " ";
+    }
+    std::cout << endl;
+    std::cout << "loss " << res / 40 << std::endl;
+    std::cout << std::endl;
+
+    std::cout << "PQ test simd sse" << std::endl;
+    PQ.calc_dist_map(test_load);
+    unsigned NSQ = 120;
+    float sse_res[4];
+    for (int i = 0; i < 40; i += 4) {
+        __m128 candidate_dist;
+        const uint8_t *const pqcode0 = PQ.pq_mp + i * NSQ;
+        const uint8_t *const pqcode1 = pqcode0 + NSQ;
+        const uint8_t *const pqcode2 = pqcode0 + 2 * NSQ;
+        const uint8_t *const pqcode3 = pqcode0 + 3 * NSQ;
+
+        //std::cout<<(int)pqcode0[0]<<" "<<(int)pqcode1[0]<<" "<<(int)pqcode2[0]<<" "<<(int)pqcode3[0]<<endl;
+        PQ.sse4_product_map_dist(pqcode0, pqcode1, pqcode2, pqcode3, PQ.dist_mp, candidate_dist);
+        _mm_store_ps(sse_res, candidate_dist);
+        std::cout << sse_res[0] << " " << sse_res[1] << " " << sse_res[2] << " " << sse_res[3] << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "PQ test simd " << std::endl;
+    PQ.calc_dist_map(test_load);
+    float avx_res[8];
+    for (int i = 0; i < 40; i += 8) {
+        __m256 candidate_dist;
+        const uint8_t *const pqcode0 = PQ.pq_mp + i * NSQ;
+        const uint8_t *const pqcode1 = pqcode0 + NSQ;
+        const uint8_t *const pqcode2 = pqcode0 + 2 * NSQ;
+        const uint8_t *const pqcode3 = pqcode0 + 3 * NSQ;
+        const uint8_t *const pqcode4 = pqcode0 + 4 * NSQ;
+        const uint8_t *const pqcode5 = pqcode0 + 5 * NSQ;
+        const uint8_t *const pqcode6 = pqcode0 + 6 * NSQ;
+        const uint8_t *const pqcode7 = pqcode0 + 7 * NSQ;
+        //std::cout<<(int)pqcode0[0]<<" "<<(int)pqcode1[0]<<" "<<(int)pqcode2[0]<<" "<<(int)pqcode3[0]<<" "<<(int)pqcode4[0]<<" "<<(int)pqcode5[0]<<" "<<(int)pqcode6[0]<<" "<<(int)pqcode7[0]<<endl;
+        PQ.axv8_product_map_dist(pqcode0, pqcode1, pqcode2, pqcode3, pqcode4, pqcode5, pqcode6, pqcode7, PQ.dist_mp,
+                                 candidate_dist);
+        _mm256_store_ps(avx_res, candidate_dist);
+        std::cout << avx_res[0] << " " << avx_res[1] << " " << avx_res[2] << " " << avx_res[3] << " " << avx_res[4]
+                  << " " << avx_res[5] << " " << avx_res[6] << " " << avx_res[7] << " ";
+    }
+    std::cout << std::endl;
 
     return 0;
 }

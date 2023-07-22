@@ -5,7 +5,9 @@
 
 #include <iostream>
 #include <fstream>
-
+#include "pq.h"
+#include "pca.h"
+#include "linearmodel.h"
 #include <ctime>
 #include <cmath>
 #include <matrix.h>
@@ -18,61 +20,42 @@ using namespace std;
 
 const int MAXK = 100;
 
-long double rotation_time=0;
+long double rotation_time = 0;
 
-void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int k){
-    float sys_t, usr_t, usr_t_sum = 0, total_time=0, search_time=0;
-    struct rusage run_start, run_end;
-
+vector<vector<tuple<unsigned, float, float> > >  test_logger(const Matrix<float> &Q, const IVF &ivf, int k) {
     vector<int> nprobes;
     nprobes.push_back(100);
-
-    for(auto nprobe:nprobes){
-        total_time=0;
-        adsampling::clear();
-        int correct = 0;
-
-        for(int i=0;i<Q.n;i++){
-            GetCurTime( &run_start);
-            ResultHeap KNNs = ivf.search(Q.data + i * Q.d, k, nprobe);
-            GetCurTime( &run_end);
-            GetTime(&run_start, &run_end, &usr_t, &sys_t);
-            total_time += usr_t * 1e6;
-            // Recall
-            while(KNNs.empty() == false){
-                int id = KNNs.top().second;
-                KNNs.pop();
-                for(int j=0;j<k;j++)
-                    if(id == G.data[i * G.d + j])correct ++;
-            }
+    vector<vector<tuple<unsigned, float, float> > > ivf_logger(Q.n);
+    for (auto nprobe: nprobes) {
+#pragma omp parallel for
+        for (int i = 0; i < Q.n; i++) {
+            std::vector<std::tuple<unsigned, float, float> > cur;
+            cur = ivf.search_logger(Q.data + i * Q.d, k, nprobe);
+            ivf_logger[i] = cur;
         }
-        float time_us_per_query = total_time / Q.n + rotation_time;
-        float recall = 1.0f * correct / (Q.n * k);
-
-        // (Search Parameter, Recall, Average Time/Query(us), Total Dimensionality)
-        cout << nprobe << " " << recall * 100.00 << " " << time_us_per_query << " " << adsampling::tot_dimension << endl;
     }
+    return ivf_logger;
 }
 
-int main(int argc, char * argv[]) {
+int main(int argc, char *argv[]) {
 
-    const struct option longopts[] ={
+    const struct option longopts[] = {
             // General Parameter
-            {"help",                        no_argument,       0, 'h'},
+            {"help",                no_argument,       0, 'h'},
 
             // Query Parameter
-            {"randomized",                  required_argument, 0, 'd'},
-            {"K",                           required_argument, 0, 'k'},
-            {"epsilon0",                    required_argument, 0, 'e'},
-            {"delta_d",                     required_argument, 0, 'p'},
+            {"randomized",          required_argument, 0, 'd'},
+            {"K",                   required_argument, 0, 'k'},
+            {"epsilon0",            required_argument, 0, 'e'},
+            {"delta_d",             required_argument, 0, 'p'},
 
             // Indexing Path
-            {"dataset",                     required_argument, 0, 'n'},
-            {"index_path",                  required_argument, 0, 'i'},
-            {"query_path",                  required_argument, 0, 'q'},
-            {"groundtruth_path",            required_argument, 0, 'g'},
-            {"result_path",                 required_argument, 0, 'r'},
-            {"transformation_path",         required_argument, 0, 't'},
+            {"dataset",             required_argument, 0, 'n'},
+            {"index_path",          required_argument, 0, 'i'},
+            {"query_path",          required_argument, 0, 'q'},
+            {"groundtruth_path",    required_argument, 0, 'g'},
+            {"result_path",         required_argument, 0, 'r'},
+            {"transformation_path", required_argument, 0, 't'},
     };
 
     int ind;
@@ -85,60 +68,80 @@ int main(int argc, char * argv[]) {
     char result_path[256] = "";
     char dataset[256] = "";
     char transformation_path[256] = "";
+    char codebook_path[256] = "";
 
     int randomize = 0;
     int subk = 0;
 
-    while(iarg != -1){
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:", longopts, &ind);
-        switch (iarg){
+    while (iarg != -1) {
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:", longopts, &ind);
+        switch (iarg) {
             case 'd':
-                if(optarg)randomize = atoi(optarg);
+                if (optarg)randomize = atoi(optarg);
                 break;
             case 'k':
-                if(optarg)subk = atoi(optarg);
+                if (optarg)subk = atoi(optarg);
                 break;
             case 'e':
-                if(optarg)adsampling::epsilon0 = atof(optarg);
+                if (optarg)adsampling::epsilon0 = atof(optarg);
                 break;
             case 'p':
-                if(optarg)adsampling::delta_d = atoi(optarg);
+                if (optarg)adsampling::delta_d = atoi(optarg);
                 break;
             case 'i':
-                if(optarg)strcpy(index_path, optarg);
+                if (optarg)strcpy(index_path, optarg);
                 break;
             case 'q':
-                if(optarg)strcpy(query_path, optarg);
+                if (optarg)strcpy(query_path, optarg);
                 break;
             case 'g':
-                if(optarg)strcpy(groundtruth_path, optarg);
+                if (optarg)strcpy(groundtruth_path, optarg);
                 break;
             case 'r':
-                if(optarg)strcpy(result_path, optarg);
+                if (optarg)strcpy(result_path, optarg);
                 break;
             case 't':
-                if(optarg)strcpy(transformation_path, optarg);
+                if (optarg)strcpy(transformation_path, optarg);
                 break;
             case 'n':
-                if(optarg)strcpy(dataset, optarg);
+                if (optarg)strcpy(dataset, optarg);
+            case 'b':
+                if (optarg)strcpy(codebook_path, optarg);
                 break;
         }
     }
-
     Matrix<float> Q(query_path);
     Matrix<unsigned> G(groundtruth_path);
-    Matrix<float> P(transformation_path);
-
-    freopen(result_path,"a",stdout);
-    if(randomize){
-        StopW stopw = StopW();
-        Q = mul(Q, P);
-        rotation_time = stopw.getElapsedTimeMicro() / Q.n;
-        adsampling::D = Q.d;
-    }
 
     IVF ivf;
     ivf.load(index_path);
-    test(Q, G, ivf, subk);
+    std::cerr<<"begin"<<endl;
+    auto res = test_logger(Q, ivf, subk);
+
+    float *data_load;
+    unsigned points_num, dim;
+    load_float_data(dataset, data_load, points_num, dim);
+    Index_PQ::Quantizer PQ(points_num, dim, data_load);
+    PQ.load_product_codebook(codebook_path);
+    PQ.encoder_origin_data();
+    PQ.load_project_matrix(transformation_path);
+    PQ.project_vector(Q.data, Q.n);
+    double count_all = 0.0, base_all = 0.0;
+    for(int i = 0; i < 10; i++){
+        PQ.calc_dist_map(Q.data + i * dim);
+        for(auto u:res[i]){
+            unsigned id = get<0>(u);
+            float node_dist = get<1>(u);
+            float thresh_dist = get<2>(u);
+            float pq_dist = PQ.naive_product_map_dist(id);
+            float node_to_cluster = PQ.node_cluster_dist_[id];
+            // std::cout<<pq_dist<<" "<<node_dist<<" "<<node_to_cluster<<std::endl;
+            if(thresh_dist < pq_dist - node_to_cluster) count_all += 1.0;
+            base_all += 1.0;
+        }
+    }
+    std::cout<<count_all<<" "<<base_all<<endl;
+    std::cout<<count_all/base_all<<endl;
+
     return 0;
 }

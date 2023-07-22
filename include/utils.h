@@ -18,10 +18,12 @@
 #include <boost/unordered_map.hpp>
 #include <stack>
 #include <x86intrin.h>
+#include <immintrin.h>
 #include <malloc.h>
 #include <set>
 #include <cmath>
 #include <queue>
+#include <Eigen/Dense>
 #ifndef WIN32
 #include<sys/resource.h>
 #endif

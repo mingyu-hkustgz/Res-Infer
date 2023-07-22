@@ -18,5 +18,5 @@ else()
 endif()
 
 
-add_definitions (-std=c++14 -O3 -lboost  -Wall -DINFO)
+add_definitions (-std=c++14 -O3 -lboost  -Wall -DINFO -m64 -march=native -ffast-math)
 add_subdirectory(src)

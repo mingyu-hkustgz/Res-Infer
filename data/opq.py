@@ -44,7 +44,8 @@ if __name__ == "__main__":
         opq.train(X_learn)
         Matrix_A = faiss.vector_float_to_array(opq.A)
         Matrix_A = Matrix_A.reshape(d2, d2)
-        fvecs_write(f'./DATA/{dataset}_matrix.fvecs', Matrix_A)
+        # save the transpose matrix
+        fvecs_write(f'./DATA/{dataset}_opq_matrix.fvecs', Matrix_A.T)
         X_learn = opq.apply(X_learn)
         X_base = opq.apply(X_base)
         pq = faiss.ProductQuantizer(d2, M, nbits)
