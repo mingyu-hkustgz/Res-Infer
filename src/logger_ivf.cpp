@@ -56,6 +56,7 @@ int main(int argc, char *argv[]) {
             {"groundtruth_path",    required_argument, 0, 'g'},
             {"result_path",         required_argument, 0, 'r'},
             {"transformation_path", required_argument, 0, 't'},
+            {"codebook_path", required_argument, 0, 'b'},
     };
 
     int ind;
@@ -117,7 +118,6 @@ int main(int argc, char *argv[]) {
     ivf.load(index_path);
     std::cerr<<"begin"<<endl;
     auto res = test_logger(Q, ivf, subk);
-
     float *data_load;
     unsigned points_num, dim;
     load_float_data(dataset, data_load, points_num, dim);
@@ -127,7 +127,9 @@ int main(int argc, char *argv[]) {
     PQ.load_project_matrix(transformation_path);
     PQ.project_vector(Q.data, Q.n);
     double count_all = 0.0, base_all = 0.0;
-    for(int i = 0; i < 10; i++){
+    std::ofstream out("./DATA/gist_logger_OPQ60_ivf.fvecs");
+    unsigned feature_dim = 4;
+    for(int i = 0; i < Q.n; i++){
         PQ.calc_dist_map(Q.data + i * dim);
         for(auto u:res[i]){
             unsigned id = get<0>(u);
@@ -135,13 +137,17 @@ int main(int argc, char *argv[]) {
             float thresh_dist = get<2>(u);
             float pq_dist = PQ.naive_product_map_dist(id);
             float node_to_cluster = PQ.node_cluster_dist_[id];
-            // std::cout<<pq_dist<<" "<<node_dist<<" "<<node_to_cluster<<std::endl;
+            out.write((char*)&feature_dim,sizeof(unsigned));
+            out.write((char*)&node_dist,sizeof(float));
+            out.write((char*)&pq_dist,sizeof(float));
+            out.write((char*)&node_to_cluster,sizeof(float));
+            out.write((char*)&thresh_dist,sizeof(float));
             if(thresh_dist < pq_dist - node_to_cluster) count_all += 1.0;
             base_all += 1.0;
         }
     }
     std::cout<<count_all<<" "<<base_all<<endl;
     std::cout<<count_all/base_all<<endl;
-
+    out.close();
     return 0;
 }

@@ -3,8 +3,9 @@ cd ..
 
 C=4096
 data='gist'
+opq_dim=120
 
-for adaptive in {0..2}
+for adaptive in {0..3}
 do
 
 echo "Indexing - ${data}"
@@ -16,7 +17,7 @@ if [ $adaptive == "0" ] # raw vectors
 then
     data_file="${data_path}/${data}_base.fvecs"
     centroid_file="${data_path}/${data}_centroid_${C}.fvecs"
-else                    # preprocessed vectors                  
+elif [ $adaptive == "1" || $adaptive == "2"] # preprocessed vectors
     data_file="${data_path}/O${data}_base.fvecs"
     centroid_file="${data_path}/O${data}_centroid_${C}.fvecs"
 fi

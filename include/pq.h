@@ -2,6 +2,7 @@
 // Created by mingyu on 23-7-20.
 //
 #include "utils.h"
+
 #ifndef LEARN_TO_PRUNE_PQ_H
 #define LEARN_TO_PRUNE_PQ_H
 #define AVX_SZ 8
@@ -21,7 +22,7 @@ namespace Index_PQ {
         // format i-th sub-vector j-th sub-vector-cluster_id k-th cluster-data
         typedef std::vector<std::vector<std::vector<float> > > CodeBook;
         CodeBook pq_book;
-        float* dist_mp;
+        float *dist_mp;
         unsigned sub_dim, sub_vector, sub_cluster_count;
         unsigned dimension_, nd_;
         uint8_t *pq_mp;
@@ -88,18 +89,18 @@ namespace Index_PQ {
         float naive_product_map_dist(unsigned id) const {
             float res = 0;
             for (int i = 0; i < sub_vector; i++) {
-                res += dist_mp[i * sub_cluster_count +  pq_mp[id * sub_vector + i]];
+                res += dist_mp[i * sub_cluster_count + pq_mp[id * sub_vector + i]];
             }
             return res;
         }
 
         __attribute__((always_inline))
-        inline void sse4_product_map_dist(const uint8_t* const pqcode0,
-                                          const uint8_t* const& pqcode1,
-                                          const uint8_t* const& pqcode2,
-                                          const uint8_t* const& pqcode3,
-                                          float*& dists,
-                                          __m128& candidates
+        inline void sse4_product_map_dist(const uint8_t *const pqcode0,
+                                          const uint8_t *const &pqcode1,
+                                          const uint8_t *const &pqcode2,
+                                          const uint8_t *const &pqcode3,
+                                          float *&dists,
+                                          __m128 &candidates
         ) const {
             candidates = _mm_set_ps(
                     dists[pqcode3[0]],
@@ -109,7 +110,7 @@ namespace Index_PQ {
             );
             // Such perf critical loop. Pls unroll
             for (unsigned j = 1; j < sub_vector; ++j) {
-                const float* const cdist = dists + j * sub_cluster_count;
+                const float *const cdist = dists + j * sub_cluster_count;
                 __m128 partial = _mm_set_ps(
                         cdist[pqcode3[j]],
                         cdist[pqcode2[j]],
@@ -122,16 +123,16 @@ namespace Index_PQ {
 
         /** Base functions for avx **/
         __attribute__((always_inline))
-        inline void axv8_product_map_dist(const uint8_t* const pqcode0,
-                                               const uint8_t* const& pqcode1,
-                                               const uint8_t* const& pqcode2,
-                                               const uint8_t* const& pqcode3,
-                                               const uint8_t* const& pqcode4,
-                                               const uint8_t* const& pqcode5,
-                                               const uint8_t* const& pqcode6,
-                                               const uint8_t* const& pqcode7,
-                                               float*& dists,
-                                               __m256& candidates
+        inline void axv8_product_map_dist(const uint8_t *const pqcode0,
+                                          const uint8_t *const &pqcode1,
+                                          const uint8_t *const &pqcode2,
+                                          const uint8_t *const &pqcode3,
+                                          const uint8_t *const &pqcode4,
+                                          const uint8_t *const &pqcode5,
+                                          const uint8_t *const &pqcode6,
+                                          const uint8_t *const &pqcode7,
+                                          float *&dists,
+                                          __m256 &candidates
         ) const {
             candidates = _mm256_set_ps(
                     dists[pqcode7[0]],
@@ -145,7 +146,7 @@ namespace Index_PQ {
             );
             // Such perf critical loop. Pls unroll
             for (unsigned j = 1; j < sub_vector; ++j) {
-                const float* const cdist = dists + j * sub_cluster_count;
+                const float *const cdist = dists + j * sub_cluster_count;
                 __m256 partial = _mm256_set_ps(
                         cdist[pqcode7[j]],
                         cdist[pqcode6[j]],
@@ -160,6 +161,39 @@ namespace Index_PQ {
             }
         }
 
+        float *sse4_dist_sacn(const unsigned *id, unsigned num) {
+            auto res = new float[num];
+            for (int i = 0; i < num; i += 4) {
+                __m128 candidate_dist;
+                const uint8_t *const pqcode0 = pq_mp + id[i] * sub_vector;
+                const uint8_t *const pqcode1 = pq_mp + id[i + 1] * sub_vector;
+                const uint8_t *const pqcode2 = pq_mp + id[i + 2] * sub_vector;
+                const uint8_t *const pqcode3 = pq_mp + id[i + 3] * sub_vector;
+                sse4_product_map_dist(pqcode0, pqcode1, pqcode2, pqcode3, dist_mp, candidate_dist);
+                _mm_store_ps(res + i, candidate_dist);
+            }
+            return res;
+        }
+
+
+        float *avx8_dist_sacn(const unsigned *id, unsigned num) {
+            auto res = new float[num];
+            for (int i = 0; i < num; i += 8) {
+                __m256 candidate_dist;
+                const uint8_t *const pqcode0 = pq_mp + id[i] * sub_vector;
+                const uint8_t *const pqcode1 = pq_mp + id[i + 1] * sub_vector;
+                const uint8_t *const pqcode2 = pq_mp + id[i + 2] * sub_vector;
+                const uint8_t *const pqcode3 = pq_mp + id[i + 3] * sub_vector;
+                const uint8_t *const pqcode4 = pq_mp + id[i + 4] * sub_vector;
+                const uint8_t *const pqcode5 = pq_mp + id[i + 5] * sub_vector;
+                const uint8_t *const pqcode6 = pq_mp + id[i + 6] * sub_vector;
+                const uint8_t *const pqcode7 = pq_mp + id[i + 7] * sub_vector;
+                axv8_product_map_dist(pqcode0, pqcode1, pqcode2, pqcode3, pqcode4, pqcode5, pqcode6, pqcode7, dist_mp,
+                                      candidate_dist);
+                _mm256_store_ps(res + i, candidate_dist);
+            }
+            return res;
+        }
 
 
         float naive_product_dist(unsigned id, const float *query) const {

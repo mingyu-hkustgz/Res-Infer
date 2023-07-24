@@ -7,7 +7,7 @@ import struct
 source = '/home/BLD/mingyu/DATA/vector_data'
 datasets = ['gist', 'sift']
 
-pca_dim = 10
+pca_dim = 960
 
 if __name__ == "__main__":
     for dataset in datasets:
@@ -24,6 +24,7 @@ if __name__ == "__main__":
         learn = fvecs_read(learn_path)
         query = fvecs_read(query_path)
         D = learn.shape[1]
+        pca_dim = min(pca_dim, D)
         # projection
         pca = PCA(n_components=pca_dim)
         pca.fit(learn)

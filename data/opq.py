@@ -37,7 +37,7 @@ if __name__ == "__main__":
         X_base = fvecs_read(data_path)
         X_learn = fvecs_read(learn_path)
         d = X_learn.shape[1]
-        M = d//8
+        M = d // 8
         d2 = ((d + M - 1) // M) * M
         opq = faiss.OPQMatrix(d, M, d2)
         opq.verbose = True
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         Matrix_A = faiss.vector_float_to_array(opq.A)
         Matrix_A = Matrix_A.reshape(d2, d2)
         # save the transpose matrix
-        fvecs_write(f'./DATA/{dataset}_opq_matrix.fvecs', Matrix_A.T)
+        fvecs_write(f'./DATA/{dataset}_opq_matrix_{M}.fvecs', Matrix_A.T)
         X_learn = opq.apply(X_learn)
         X_base = opq.apply(X_base)
         pq = faiss.ProductQuantizer(d2, M, nbits)
@@ -53,6 +53,6 @@ if __name__ == "__main__":
         pq.train(X_learn)
         centroids = faiss.vector_float_to_array(pq.centroids)
         centroids = centroids.reshape(pq.M, pq.ksub, pq.dsub)
-        save_centroid(f'./DATA/{dataset}_codebook.centroid', centroids)
-        fvecs_write(f'./DATA/{dataset}_tran_base.fvecs', X_base)
-        fvecs_write(f'./DATA/{dataset}_tran_learn.fvecs', X_learn)
+        save_centroid(f'./DATA/{dataset}_codebook_{M}.centroid', centroids)
+        fvecs_write(f'./DATA/{dataset}_tran_base_{M}.fvecs', X_base)
+        fvecs_write(f'./DATA/{dataset}_tran_learn_{M}.fvecs', X_learn)

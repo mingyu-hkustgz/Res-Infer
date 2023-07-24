@@ -20,7 +20,7 @@ We explain the important variables for the enhanced IVF as follows.
 #include "adsampling.h"
 #include "matrix.h"
 #include "utils.h"
-
+#include "pq.h"
 
 class IVF{
 public:
@@ -36,16 +36,22 @@ public:
     size_t* start;
     size_t* len;
     size_t* id;
-
+    Index_PQ::Quantizer *PQ;
     IVF();
     IVF(const Matrix<float> &X, const Matrix<float> &_centroids, int adaptive=0);
     ~IVF();
 
     ResultHeap search(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
-    std::vector<std::tuple<unsigned, float, float> > search_logger(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
-    void save(char* filename);
-    void load(char* filename);
 
+    ResultHeap search_with_quantizer(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
+
+    std::vector<std::tuple<unsigned, float, float> > search_logger(float* query, size_t k, size_t nprobe) const;
+
+    void transform_data_opq(float *data);
+
+    void save(char* filename);
+
+    void load(char* filename);
 };
 
 IVF::IVF(){
@@ -225,7 +231,44 @@ ResultHeap IVF::search(float* query, size_t k, size_t nprobe, float distK) const
     return KNNs;
 }
 
-std::vector<std::tuple<unsigned, float, float> > IVF::search_logger(float* query, size_t k, size_t nprobe, float distK) const{
+
+ResultHeap IVF::search_with_quantizer(float* query, size_t k, size_t nprobe, float distK) const{
+    // the default value of distK is +inf
+    Result* centroid_dist = new Result [C];
+
+    // Find out the closest N_{probe} centroids to the query vector.
+    for(int i=0;i<C;i++){
+        centroid_dist[i].first = sqr_dist(query, centroids+i*D, D);
+        centroid_dist[i].second = i;
+    }
+
+    // Find out the closest N_{probe} centroids to the query vector.
+    std::partial_sort(centroid_dist, centroid_dist + nprobe, centroid_dist + C);
+
+    // fast inference by PQ approximate distance
+    PQ->calc_dist_map(query);
+    ResultHeap KNNs;
+    float thresh = distK;
+    for(int i=0;i<nprobe;i++){
+        unsigned cluster_id = centroid_dist[i].second;
+        for(int j=0;j<len[cluster_id];j++){
+            size_t can = start[cluster_id] + j;
+            if(PQ->naive_product_map_dist(id[can]) - PQ->node_cluster_dist_[id[can]] > thresh) continue;
+            float tmp_dist = sqr_dist(query, L1_data + can * D, D);
+            if(KNNs.size() < k) KNNs.emplace(tmp_dist,id[can]);
+            else if(tmp_dist < KNNs.top().first){
+                KNNs.emplace(tmp_dist,id[can]);
+                if(KNNs.size() > k) KNNs.pop();
+                thresh = KNNs.top().first;
+            }
+        }
+    }
+
+    delete [] centroid_dist;
+    return KNNs;
+}
+
+std::vector<std::tuple<unsigned, float, float> > IVF::search_logger(float* query, size_t k, size_t nprobe) const{
     // the default value of distK is +inf
     auto* centroid_dist = new Result [C];
     std::vector<std::tuple<unsigned ,float, float> > search_logger;
@@ -313,4 +356,12 @@ void IVF::load(char * filename){
     
     input.close();
 }
+
+void IVF::transform_data_opq(float *data){
+    PQ->project_vector(centroids,C);
+    for(int i = 0;i < N; i++){
+        memcpy(L1_data + i * D, data + id[i] *D, sizeof(float) *D);
+    }
+}
+
 
