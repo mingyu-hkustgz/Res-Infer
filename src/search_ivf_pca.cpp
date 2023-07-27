@@ -3,7 +3,7 @@
 #define COUNT_DIMENSION
 // #define COUNT_DIST_TIME
 //#define USE_AVX
-#define USE_SSE
+//#define USE_SSE
 
 #include <iostream>
 #include <fstream>
@@ -26,9 +26,9 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
     struct rusage run_start, run_end;
 
     vector<int> nprobes;
-    nprobes.push_back(100);
-    nprobes.push_back(200);
-    nprobes.push_back(300);
+    nprobes.push_back(10);
+    nprobes.push_back(20);
+    nprobes.push_back(30);
     for(auto nprobe:nprobes){
         total_time=0;
         adsampling::clear();
@@ -36,8 +36,7 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
 
         for(int i=0;i<Q.n;i++){
             GetCurTime( &run_start);
-            //ResultHeap KNNs = ivf.search_with_quantizer(Q.data + i * Q.d, k, nprobe);
-            ResultHeap KNNs = ivf.search_with_quantizer_simd(Q.data + i * Q.d, k, nprobe);
+            ResultHeap KNNs = ivf.search(Q.data + i * Q.d, k, nprobe);
             GetCurTime( &run_end);
             GetTime(&run_start, &run_end, &usr_t, &sys_t);
             total_time += usr_t * 1e6;
@@ -138,15 +137,16 @@ int main(int argc, char * argv[]) {
 
     IVF ivf;
     ivf.load(index_path);
-    Index_PQ::Quantizer PQ(ivf.N, ivf.D);
-    PQ.load_product_codebook(codebook_path);
-    PQ.load_project_matrix(transformation_path);
-    ivf.PQ = &PQ;
-    ivf.encoder_origin_data();
-    StopW stopw = StopW();
+    Index_PCA::PCA PCA(ivf.N, ivf.D, ivf.res_data);
+    PCA.load_project_matrix(transformation_path);
+    ivf.PCA = &PCA;
     freopen(result_path,"a",stdout);
-    PQ.project_vector(Q.data, Q.n);
+
+    StopW stopw = StopW();
+    PCA.project_vector(Q.data, Q.n);
+    adsampling::D = Q.d;
     rotation_time = stopw.getElapsedTimeMicro() / Q.n;
+
     std::cout<<"rotate time:: "<<rotation_time<<std::endl;
     test(Q, G, ivf, subk);
     return 0;

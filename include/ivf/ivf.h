@@ -21,6 +21,7 @@ We explain the important variables for the enhanced IVF as follows.
 #include "matrix.h"
 #include "utils.h"
 #include "pq.h"
+#include "pca.h"
 
 class IVF{
 public:
@@ -36,7 +37,10 @@ public:
     size_t* start;
     size_t* len;
     size_t* id;
+
     Index_PQ::Quantizer *PQ;
+    Index_PCA::PCA *PCA;
+
     IVF();
     IVF(const Matrix<float> &X, const Matrix<float> &_centroids, int adaptive=0);
     ~IVF();
@@ -45,9 +49,11 @@ public:
 
     ResultHeap search_with_quantizer(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
 
+    ResultHeap search_with_quantizer_simd(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
+
     std::vector<std::tuple<unsigned, float, float> > search_logger(float* query, size_t k, size_t nprobe) const;
 
-    void transform_data_opq(float *data);
+    void encoder_origin_data();
 
     void save(char* filename);
 
@@ -105,7 +111,7 @@ IVF::IVF(const Matrix<float> &X, const Matrix<float> &_centroids, int adaptive){
         }
     }
 
-    if(adaptive == 1)d = 32;        // IVF++ - optimize cache (d = 32 by default)
+    if(adaptive == 1) d = 32;        // IVF++ - optimize cache (d = 32 by default)
     else if(adaptive == 0) d = D;   // IVF   - plain scan
     else d = 0;                     // IVF+  - plain ADSampling        
 
@@ -253,7 +259,7 @@ ResultHeap IVF::search_with_quantizer(float* query, size_t k, size_t nprobe, flo
         unsigned cluster_id = centroid_dist[i].second;
         for(int j=0;j<len[cluster_id];j++){
             size_t can = start[cluster_id] + j;
-            if(PQ->naive_product_map_dist(id[can]) - PQ->node_cluster_dist_[id[can]] > thresh) continue;
+            if(PQ->naive_product_map_dist(can) - PQ->node_cluster_dist_[can] > thresh) continue;
             float tmp_dist = sqr_dist(query, L1_data + can * D, D);
             if(KNNs.size() < k) KNNs.emplace(tmp_dist,id[can]);
             else if(tmp_dist < KNNs.top().first){
@@ -267,6 +273,66 @@ ResultHeap IVF::search_with_quantizer(float* query, size_t k, size_t nprobe, flo
     delete [] centroid_dist;
     return KNNs;
 }
+
+ResultHeap IVF::search_with_quantizer_simd(float* query, size_t k, size_t nprobe, float distK) const{
+    // the default value of distK is +inf
+    Result* centroid_dist = new Result [C];
+
+    // Find out the closest N_{probe} centroids to the query vector.
+    for(int i=0;i<C;i++){
+        centroid_dist[i].first = sqr_dist(query, centroids+i*D, D);
+        centroid_dist[i].second = i;
+    }
+
+    // Find out the closest N_{probe} centroids to the query vector.
+    std::partial_sort(centroid_dist, centroid_dist + nprobe, centroid_dist + C);
+
+    // fast inference by PQ approximate distance
+    PQ->calc_dist_map(query);
+    ResultHeap KNNs;
+    float thresh = distK;
+    for(int i=0;i<nprobe;i++){
+        unsigned cluster_id = centroid_dist[i].second;
+#ifdef USE_AVX
+        std::vector<unsigned> ids;
+        for(int j=0;j<len[cluster_id];j++){
+            size_t can = start[cluster_id] + j;
+            ids.push_back(id[can]);
+        }
+        while(ids.size()%8!=0) ids.push_back(0);
+        auto res = PQ->avx8_dist_sacn(ids.data(), ids.size());
+#else
+        std::vector<unsigned> ids;
+        for(int j=0;j<len[cluster_id];j++){
+            size_t can = start[cluster_id] + j;
+            ids.push_back(can);
+        }
+        while(ids.size()%4!=0) ids.push_back(0);
+        auto res = PQ->sse4_dist_sacn(ids.data(), ids.size());
+//#else
+//        auto res = new float[len[cluster_id]];
+//        for(int j=0;j<len[cluster_id];j++){
+//            size_t can = start[cluster_id] + j;
+//            res[j] = PQ->naive_product_map_dist(id[can]);
+//        }
+#endif
+        for(int j=0;j<len[cluster_id];j++){
+            size_t can = start[cluster_id] + j;
+            if(res[j] - PQ->node_cluster_dist_[can] > thresh) continue;
+            float tmp_dist = sqr_dist(query, L1_data + can * D, D);
+            if(KNNs.size() < k) KNNs.emplace(tmp_dist,id[can]);
+            else if(tmp_dist < KNNs.top().first){
+                KNNs.emplace(tmp_dist,id[can]);
+                if(KNNs.size() > k) KNNs.pop();
+                thresh = KNNs.top().first;
+            }
+        }
+        delete [] res;
+    }
+    delete [] centroid_dist;
+    return KNNs;
+}
+
 
 std::vector<std::tuple<unsigned, float, float> > IVF::search_logger(float* query, size_t k, size_t nprobe) const{
     // the default value of distK is +inf
@@ -290,14 +356,18 @@ std::vector<std::tuple<unsigned, float, float> > IVF::search_logger(float* query
         int cluster_id = centroid_dist[i].second;
         for(int j=0;j<len[cluster_id];j++){
             size_t can = start[cluster_id] + j;
-            float tmp_dist = sqr_dist(query, L1_data + can * d, d);
+            float tmp_dist;
+            if(d==D)
+                tmp_dist = sqr_dist(query, L1_data + can * d, d);
+            else
+                tmp_dist = sqr_dist(query, res_data + can * D, D);
             if(res_queue.size() < k) res_queue.push(tmp_dist);
             else if(tmp_dist < res_queue.top()){
                 res_queue.push(tmp_dist);
                 if(res_queue.size() > k) res_queue.pop();
             }
             if(res_queue.size()==k)
-                search_logger.emplace_back(id[can], tmp_dist, res_queue.top());
+                search_logger.emplace_back(can, tmp_dist, res_queue.top());
         }
     }
     delete [] centroid_dist;
@@ -357,11 +427,30 @@ void IVF::load(char * filename){
     input.close();
 }
 
-void IVF::transform_data_opq(float *data){
-    PQ->project_vector(centroids,C);
-    for(int i = 0;i < N; i++){
-        memcpy(L1_data + i * D, data + id[i] *D, sizeof(float) *D);
+void IVF::encoder_origin_data() {
+    PQ->pq_mp = new unsigned char[PQ->nd_ * PQ->sub_vector];
+    PQ->node_cluster_dist_ = new float[PQ->nd_];
+    double ave_dist = 0.0;
+#pragma omp parallel for
+    for (int i = 0; i < PQ->nd_; i++) {
+        float dist_to_centroid = 0.0;
+        for (int j = 0; j < PQ->sub_vector; j++) {
+            uint8_t belong = 0;
+            float dist = naive_l2_dist_calc(L1_data + i * PQ->dimension_, PQ->pq_book[j][0].data(), PQ->sub_dim);
+            for (int k = 1; k < PQ->sub_cluster_count; k++) {
+                float new_dist = naive_l2_dist_calc(L1_data + i * D + j * PQ->sub_dim, PQ->pq_book[j][k].data(),
+                                                    PQ->sub_dim);
+                if (new_dist < dist) {
+                    belong = k;
+                    dist = new_dist;
+                }
+            }
+            dist_to_centroid += dist;
+            PQ->pq_mp[i * PQ->sub_vector + j] = belong;
+        }
+        PQ->node_cluster_dist_[i] = dist_to_centroid;
+#pragma omp critical
+        ave_dist += dist_to_centroid;
     }
+    std::cerr << "Encoder ave dist:: " << ave_dist / PQ->nd_ << std::endl;
 }
-
-

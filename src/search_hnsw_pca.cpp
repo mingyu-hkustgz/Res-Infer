@@ -12,8 +12,6 @@
 #include <utils.h>
 #include <hnswlib/hnswlib.h>
 #include <adsampling.h>
-#include "pq.h"
-#include "pca.h"
 
 #include <getopt.h>
 
@@ -24,33 +22,76 @@ const int MAXK = 100;
 
 long double rotation_time=0;
 
+static void get_gt(unsigned int *massQA, float *massQ, size_t vecsize, size_t qsize, L2Space &l2space,
+                   size_t vecdim, vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, size_t subk, HierarchicalNSW<float> &appr_alg) {
 
-vector<vector<tuple<unsigned, float, float> > > test_approx(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
+    (vector<std::priority_queue<std::pair<float, labeltype >>>(qsize)).swap(answers);
+    DISTFUNC<float> fstdistfunc_ = l2space.get_dist_func();
+    for (int i = 0; i < qsize; i++) {
+        for (int j = 0; j < subk; j++) {
+            answers[i].emplace(appr_alg.fstdistfunc_(massQ + i * vecdim, appr_alg.getDataByInternalId(massQA[k * i + j]), appr_alg.dist_func_param_), massQA[k * i + j]);
+        }
+    }
+}
+
+
+int recall(std::priority_queue<std::pair<float, labeltype >> &result, std::priority_queue<std::pair<float, labeltype >> &gt){
+    unordered_set<labeltype> g;
+    int ret = 0;
+    while (gt.size()) {
+        g.insert(gt.top().second);
+        gt.pop();
+    }
+    while (result.size()) {
+        if (g.find(result.top().second) != g.end()) {
+            ret++;
+        }
+        result.pop();
+    }
+    return ret;
+}
+
+
+static void test_approx(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
                         vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
     size_t correct = 0;
     size_t total = 0;
     long double total_time = 0;
 
     adsampling::clear();
-    vector<vector<tuple<unsigned, float, float> > > hnsw_logger(qsize);
-#pragma omp parallel for
+
     for (int i = 0; i < qsize; i++) {
-        std::vector<std::tuple<unsigned ,float,float> > result = appr_alg.searchKnnlogger(massQ + vecdim * i, k, adaptive);
-        hnsw_logger[i] = result;
+#ifndef WIN32
+        float sys_t, usr_t, usr_t_sum = 0;
+        struct rusage run_start, run_end;
+        GetCurTime( &run_start);
+#endif
+        std::priority_queue<std::pair<float, labeltype >> result = appr_alg.searchKnn(massQ + vecdim * i, k, adaptive);
+#ifndef WIN32
+        GetCurTime( &run_end);
+        GetTime( &run_start, &run_end, &usr_t, &sys_t);
+        total_time += usr_t * 1e6;
+#endif
+        std::priority_queue<std::pair<float, labeltype >> gt(answers[i]);
+        total += gt.size();
+        int tmp = recall(result, gt);
+        correct += tmp;
     }
-    return hnsw_logger;
+    long double time_us_per_query = total_time / qsize + rotation_time;
+    long double recall = 1.0f * correct / total;
+
+    cout << appr_alg.ef_ << " " << recall * 100.0 << " " << time_us_per_query << " " << adsampling::tot_dimension + adsampling::tot_full_dist * vecdim << endl;
+    return ;
 }
 
-vector<vector<tuple<unsigned, float, float> > > test_vs_recall(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
+static void test_vs_recall(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
                            vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
     vector<size_t> efs;
     efs.push_back(1500);
-    vector<vector<tuple<unsigned, float, float> > > hnsw_logger(qsize);
     for (size_t ef : efs) {
         appr_alg.setEf(ef);
-        hnsw_logger = test_approx(massQ, vecsize, qsize, appr_alg, vecdim, answers, k, adaptive);
+        test_approx(massQ, vecsize, qsize, appr_alg, vecdim, answers, k, adaptive);
     }
-    return hnsw_logger;
 }
 
 int main(int argc, char * argv[]) {
@@ -84,12 +125,12 @@ int main(int argc, char * argv[]) {
     char result_path[256] = "";
     char dataset[256] = "";
     char transformation_path[256] = "";
-    char codebook_path[256] = "";
+
     int randomize = 0;
     int subk=100;
 
     while(iarg != -1){
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:", longopts, &ind);
         switch (iarg){
             case 'd':
                 if(optarg)randomize = atoi(optarg);
@@ -121,9 +162,6 @@ int main(int argc, char * argv[]) {
             case 'n':
                 if(optarg)strcpy(dataset, optarg);
                 break;
-            case 'b':
-                if (optarg)strcpy(codebook_path, optarg);
-                break;
         }
     }
 
@@ -131,51 +169,24 @@ int main(int argc, char * argv[]) {
 
     Matrix<float> Q(query_path);
     Matrix<unsigned> G(groundtruth_path);
+    Matrix<float> P(transformation_path);
 
+    freopen(result_path,"a",stdout);
+    if(randomize){
+        StopW stopw = StopW();
+        Q = mul(Q, P);
+        rotation_time = stopw.getElapsedTimeMicro() / Q.n;
+        adsampling::D = Q.d;
+    }
 
     L2Space l2space(Q.d);
     HierarchicalNSW<float> *appr_alg = new HierarchicalNSW<float>(&l2space, index_path, false);
-    std::cerr<<appr_alg->cur_element_count<<" "<<Q.d<<std::endl;
-    Index_PQ::Quantizer PQ(appr_alg->cur_element_count, Q.d);
-    PQ.load_product_codebook(codebook_path);
-    PQ.load_project_matrix(transformation_path);
-    appr_alg->PQ = &PQ;
-    appr_alg->encoder_origin_data();
-    size_t k = G.d;
-    //    if(randomize){
-    StopW stopw = StopW();
-    PQ.project_vector(Q.data,Q.n);
-    rotation_time = stopw.getElapsedTimeMicro() / Q.n;
-    adsampling::D = Q.d;
-//    }
 
-    freopen(result_path,"a",stdout);
+    size_t k = G.d;
     vector<std::priority_queue<std::pair<float, labeltype >>> answers;
 
-    vector<vector<tuple<unsigned, float, float> > > res(Q.n);
-    res = test_vs_recall(Q.data, appr_alg->max_elements_, Q.n, *appr_alg, Q.d, answers, subk, randomize);
-    double count_all = 0.0, base_all = 0.0;
-    std::ofstream out("./logger/gist_logger_OPQ_120_hnsw1.fvecs");
-    unsigned feature_dim = 4;
-    for(int i = 0; i < Q.n; i++){
-        PQ.calc_dist_map(Q.data + i * Q.d);
-        for(auto u:res[i]){
-            unsigned id = get<0>(u);
-            float node_dist = get<1>(u);
-            float thresh_dist = get<2>(u);
-            float pq_dist = PQ.naive_product_map_dist(id);
-            float node_to_cluster = PQ.node_cluster_dist_[id];
-            out.write((char*)&feature_dim,sizeof(unsigned));
-            out.write((char*)&node_dist,sizeof(float));
-            out.write((char*)&pq_dist,sizeof(float));
-            out.write((char*)&node_to_cluster,sizeof(float));
-            out.write((char*)&thresh_dist,sizeof(float));
-            if(thresh_dist < pq_dist - node_to_cluster) count_all += 1.0;
-            base_all += 1.0;
-        }
-    }
-    std::cout<<count_all<<" "<<base_all<<endl;
-    std::cout<<count_all/base_all<<endl;
-    out.close();
+    get_gt(G.data, Q.data, appr_alg->max_elements_, Q.n, l2space, Q.d, answers, k, subk, *appr_alg);
+    test_vs_recall(Q.data, appr_alg->max_elements_, Q.n, *appr_alg, Q.d, answers, subk, randomize);
+
     return 0;
 }

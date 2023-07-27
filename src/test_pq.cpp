@@ -19,14 +19,13 @@ int main(int argc, char **argv) {
     load_float_data(argv[1], data_load, points_num, dim);
     load_float_data(argv[2], train_load, train_num, train_dim);
     load_float_data(argv[3], test_load, test_num, test_dim);
-    Index_PQ::Quantizer PQ(points_num, dim, data_load);
+    Index_PQ::Quantizer PQ(points_num, dim);
     PQ.load_product_codebook(argv[4]);
-    PQ.encoder_origin_data();
     PQ.load_project_matrix(argv[5]);
     IVF ivf;
     ivf.load(argv[6]);
     ivf.PQ = &PQ;
-
+    ivf.encoder_origin_data();
     std::cout << "IVF naive centroid distance" << std::endl;
     std::cout << endl;
     for (int i = 0; i < 20; i++) std::cout << naive_l2_dist_calc(ivf.centroids + i * dim, test_load, dim) << " ";
@@ -36,7 +35,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 20; i++) std::cout << naive_l2_dist_calc(ivf.L1_data + i * dim, test_load, dim) << " ";
     std::cout << endl;
 
-    ivf.transform_data_opq(data_load);
+    //ivf.transform_data_opq(data_load);
     ivf.PQ->project_vector(test_load,test_num);
 
     std::cout << endl;

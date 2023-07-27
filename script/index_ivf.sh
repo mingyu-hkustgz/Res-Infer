@@ -3,7 +3,6 @@ cd ..
 
 C=4096
 data='gist'
-opq_dim=120
 
 for adaptive in {0..3}
 do

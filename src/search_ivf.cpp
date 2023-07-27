@@ -26,6 +26,8 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
 
     vector<int> nprobes;
     nprobes.push_back(100);
+    nprobes.push_back(200);
+    nprobes.push_back(300);
     
     for(auto nprobe:nprobes){
         total_time=0;
@@ -48,7 +50,7 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
         }
         float time_us_per_query = total_time / Q.n + rotation_time;
         float recall = 1.0f * correct / (Q.n * k);
-        
+
         // (Search Parameter, Recall, Average Time/Query(us), Total Dimensionality)
         cout << nprobe << " " << recall * 100.00 << " " << time_us_per_query << " " << adsampling::tot_dimension << endl;
     }
@@ -136,7 +138,7 @@ int main(int argc, char * argv[]) {
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         adsampling::D = Q.d;
     }
-    
+    std::cout<<"rotate time:: "<<rotation_time<<std::endl;
     IVF ivf;
     ivf.load(index_path);
     test(Q, G, ivf, subk);

@@ -6,9 +6,15 @@ add_executable(index_ivf index_ivf.cpp)
 
 add_executable(search_hnsw search_hnsw.cpp)
 
+add_executable(search_hnsw_opq search_hnsw_opq.cpp)
+
+add_executable(search_hnsw_pca search_hnsw_pca.cpp)
+
 add_executable(search_ivf search_ivf.cpp)
 
-add_executable(search_ivf_opq.cpp search_ivf_opq.cpp)
+add_executable(search_ivf_opq search_ivf_opq.cpp)
+
+add_executable(search_ivf_pca search_ivf_pca.cpp)
 
 add_executable(logger_hnsw logger_hnsw.cpp)
 

@@ -5,7 +5,7 @@ import os
 from utils import fvecs_write, fvecs_read
 
 source = '/home/DATA/vector_data'
-datasets = ['gist', 'sift']
+datasets = ['gist']
 # the number of clusters
 K = 4096 
 
@@ -19,11 +19,16 @@ if __name__ == '__main__':
         data_path = os.path.join(path, f'{dataset}_base.fvecs')
         centroids_path = os.path.join(path, f'{dataset}_centroid_{K}.fvecs')
         randomzized_cluster_path = os.path.join(path, f"O{dataset}_centroid_{K}.fvecs")
+        opq_cluster_path = os.path.join(path, f"{dataset}_centroid_opq_120.fvecs")
+        pca_cluster_path = os.path.join(path, f"{dataset}_centroid_pca_960.fvecs")
         transformation_path = os.path.join(path, 'O.fvecs')
-
+        opq_tran_path = f"./DATA/gist_opq_matrix_120.fvecs"
+        pca_tran_path = f"./DATA/gist_pca_matrix_960.fvecs"
         # read data vectors
         X = fvecs_read(data_path)
         P = fvecs_read(transformation_path)
+        P_opq = fvecs_read(opq_tran_path)
+        P_pca = fvecs_read(pca_tran_path)
 
         D = X.shape[1]
         
@@ -35,5 +40,13 @@ if __name__ == '__main__':
         fvecs_write(centroids_path, centroids)
 
         # randomized centroids
-        centroids = np.dot(centroids, P)
-        fvecs_write(randomzized_cluster_path, centroids)
+        randomized_centroids = np.dot(centroids, P)
+        opq_centroids = np.dot(centroids, P_opq)
+        pca_centroids = np.dot(centroids, P_pca)
+        fvecs_write(randomzized_cluster_path, randomized_centroids)
+        fvecs_write(opq_cluster_path, opq_centroids)
+        fvecs_write(pca_cluster_path, pca_centroids)
+
+
+
+

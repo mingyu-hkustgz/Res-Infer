@@ -106,6 +106,7 @@ int main(int argc, char *argv[]) {
                 break;
             case 'n':
                 if (optarg)strcpy(dataset, optarg);
+                break;
             case 'b':
                 if (optarg)strcpy(codebook_path, optarg);
                 break;
@@ -116,38 +117,57 @@ int main(int argc, char *argv[]) {
 
     IVF ivf;
     ivf.load(index_path);
-    std::cerr<<"begin"<<endl;
+    Index_PCA::PCA PCA(ivf.N,ivf.D, ivf.res_data);
+    PCA.load_project_matrix(transformation_path);
+    PCA.project_vector(Q.data, Q.n);
+    ivf.PCA = &PCA;
     auto res = test_logger(Q, ivf, subk);
-    float *data_load;
-    unsigned points_num, dim;
-    load_float_data(dataset, data_load, points_num, dim);
-    Index_PQ::Quantizer PQ(points_num, dim, data_load);
-    PQ.load_product_codebook(codebook_path);
-    PQ.encoder_origin_data();
-    PQ.load_project_matrix(transformation_path);
-    PQ.project_vector(Q.data, Q.n);
-    double count_all = 0.0, base_all = 0.0;
-    std::ofstream out("./DATA/gist_logger_OPQ60_ivf.fvecs");
-    unsigned feature_dim = 4;
+    std::ofstream out("./logger/gist_logger_PCA_64_ivf.fvecs");
+    unsigned feature_dim = 3;
+    unsigned project_dim = 64;
     for(int i = 0; i < Q.n; i++){
-        PQ.calc_dist_map(Q.data + i * dim);
         for(auto u:res[i]){
             unsigned id = get<0>(u);
             float node_dist = get<1>(u);
             float thresh_dist = get<2>(u);
-            float pq_dist = PQ.naive_product_map_dist(id);
-            float node_to_cluster = PQ.node_cluster_dist_[id];
+            float app_dist = naive_l2_dist_calc(Q.data + i * ivf.D, ivf.res_data + id * ivf.D, project_dim);
             out.write((char*)&feature_dim,sizeof(unsigned));
             out.write((char*)&node_dist,sizeof(float));
-            out.write((char*)&pq_dist,sizeof(float));
-            out.write((char*)&node_to_cluster,sizeof(float));
+            out.write((char*)&app_dist,sizeof(float));
             out.write((char*)&thresh_dist,sizeof(float));
-            if(thresh_dist < pq_dist - node_to_cluster) count_all += 1.0;
-            base_all += 1.0;
         }
     }
-    std::cout<<count_all<<" "<<base_all<<endl;
-    std::cout<<count_all/base_all<<endl;
     out.close();
+//    float *data_load;
+//    unsigned points_num, dim;
+//    load_float_data(dataset, data_load, points_num, dim);
+//    Index_PQ::Quantizer PQ(points_num, dim, data_load);
+//    PQ.load_product_codebook(codebook_path);
+//    PQ.encoder_origin_data();
+//    PQ.load_project_matrix(transformation_path);
+//    PQ.project_vector(Q.data, Q.n);
+//    double count_all = 0.0, base_all = 0.0;
+//    std::ofstream out("./logger/gist_logger_OPQ_120_ivf.fvecs");
+//    unsigned feature_dim = 4;
+//    for(int i = 0; i < Q.n; i++){
+//        PQ.calc_dist_map(Q.data + i * dim);
+//        for(auto u:res[i]){
+//            unsigned id = get<0>(u);
+//            float node_dist = get<1>(u);
+//            float thresh_dist = get<2>(u);
+//            float pq_dist = PQ.naive_product_map_dist(id);
+//            float node_to_cluster = PQ.node_cluster_dist_[id];
+//            out.write((char*)&feature_dim,sizeof(unsigned));
+//            out.write((char*)&node_dist,sizeof(float));
+//            out.write((char*)&pq_dist,sizeof(float));
+//            out.write((char*)&node_to_cluster,sizeof(float));
+//            out.write((char*)&thresh_dist,sizeof(float));
+//            if(thresh_dist < pq_dist - node_to_cluster) count_all += 1.0;
+//            base_all += 1.0;
+//        }
+//    }
+//    std::cout<<count_all<<" "<<base_all<<endl;
+//    std::cout<<count_all/base_all<<endl;
+//    out.close();
     return 0;
 }

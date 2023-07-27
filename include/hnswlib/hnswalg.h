@@ -27,6 +27,8 @@ We have included detailed comments in these functions.
 #include <assert.h>
 #include <unordered_set>
 #include <list>
+#include "pq.h"
+#include "pca.h"
 
 using namespace std;
 
@@ -147,6 +149,10 @@ namespace hnswlib {
 
         std::default_random_engine level_generator_;
         std::default_random_engine update_probability_generator_;
+
+        // Learn-to-Prune
+        Index_PQ::Quantizer* PQ = NULL;
+        Index_PCA::PCA* PCA = NULL;
 
         inline labeltype getExternalLabel(tableint internal_id) const {
             labeltype return_label;
@@ -437,7 +443,7 @@ namespace hnswlib {
                         else {
 #ifdef COUNT_DIST_TIME
                             StopW stopw = StopW();
-#endif                            
+#endif
                             dist_t dist = adsampling::dist_comp(lowerBound, getDataByInternalId(candidate_id), data_point, 0, 0);
 #ifdef COUNT_DIST_TIME
                             adsampling::distance_time += stopw.getElapsedTimeMicro();
@@ -597,6 +603,597 @@ namespace hnswlib {
             visited_list_pool_->releaseVisitedList(vl);
             return answers;
         }
+
+        template <bool has_deletions, bool collect_metrics=false>
+        std::vector<std::tuple<unsigned ,float,float> >
+        searchBaseLayerlogger(tableint ep_id, const void *data_point, size_t ef, size_t k,int adaptive = 0) const {
+            std::vector<std::tuple<unsigned ,float,float> > logger;
+            VisitedList *vl = visited_list_pool_->getFreeVisitedList();
+            vl_type *visited_array = vl->mass;
+            vl_type visited_array_tag = vl->curV;
+
+            // result_k - the cur top k result
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> result_k;
+            // top_candidates - the result set R
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
+            // candidate_set  - the search set S
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
+
+            dist_t lowerBound;
+            // Insert the entry point to the result and search set with its exact distance as a key.
+            if (!has_deletions || !isMarkedDeleted(ep_id)) {
+#ifdef COUNT_DIST_TIME
+                StopW stopw = StopW();
+#endif
+                dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                adsampling::tot_dist_calculation++;
+                adsampling::tot_full_dist ++;
+                lowerBound = dist;
+                top_candidates.emplace(dist, ep_id);
+                result_k.emplace(dist,ep_id);
+                candidate_set.emplace(-dist, ep_id);
+            }
+            else {
+                lowerBound = std::numeric_limits<dist_t>::max();
+                candidate_set.emplace(-lowerBound, ep_id);
+            }
+
+            visited_array[ep_id] = visited_array_tag;
+            int cnt_visit = 0;
+
+            // Iteratively generate candidates and conduct DCOs to maintain the result set R.
+            while (!candidate_set.empty()) {
+                std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
+
+                // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
+                if ((-current_node_pair.first) > lowerBound && (top_candidates.size() == ef || has_deletions == false)) {
+                    break;
+                }
+                candidate_set.pop();
+
+                // Fetch the smallest object in S.
+                tableint current_node_id = current_node_pair.second;
+                int *data = (int *) get_linklist0(current_node_id);
+                size_t size = getListCount((linklistsizeint*)data);
+                if(collect_metrics){
+                    metric_hops++;
+                    metric_distance_computations+=size;
+                }
+
+                // Enumerate all the neighbors of the object and view them as candidates of KNNs.
+                for (size_t j = 1; j <= size; j++) {
+                    int candidate_id = *(data + j);
+                    if (!(visited_array[candidate_id] == visited_array_tag)) {
+                        cnt_visit ++;
+                        visited_array[candidate_id] = visited_array_tag;
+
+                        // Conduct DCO with FDScanning wrt the N_ef th NN:
+                        // (1) calculate its exact distance
+                        // (2) compare it with the N_ef th distance (i.e., lowerBound)
+                        char *currObj1 = (getDataByInternalId(candidate_id));
+                        dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+                        if(adaptive==1 && result_k.size()==k) logger.emplace_back(candidate_id, dist, result_k.top().first);
+                        else if(adaptive==2 && top_candidates.size() == ef) logger.emplace_back(candidate_id, dist, top_candidates.top().first);
+
+                        if (top_candidates.size() < ef || lowerBound > dist) {
+                            candidate_set.emplace(-dist, candidate_id);
+                            if (!has_deletions || !isMarkedDeleted(candidate_id))
+                            {
+                                top_candidates.emplace(dist, candidate_id);
+                                result_k.emplace(dist,candidate_id);
+                            }
+
+                            if (top_candidates.size() > ef)
+                                top_candidates.pop();
+
+                            if (result_k.size() > k)
+                                result_k.pop();
+
+                            if (!top_candidates.empty())
+                                lowerBound = top_candidates.top().first;
+                        }
+                    }
+                }
+            }
+            visited_list_pool_->releaseVisitedList(vl);
+            return logger;
+        }
+
+
+
+        template <bool has_deletions, bool collect_metrics=false>
+        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
+        searchBaseLayerPQ(tableint ep_id, const void *data_point, size_t ef) const {
+            VisitedList *vl = visited_list_pool_->getFreeVisitedList();
+            vl_type *visited_array = vl->mass;
+            vl_type visited_array_tag = vl->curV;
+
+            // top_candidates - the result set R
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
+            // candidate_set  - the search set S
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
+
+            dist_t lowerBound;
+            // Insert the entry point to the result and search set with its exact distance as a key.
+            if (!has_deletions || !isMarkedDeleted(ep_id)) {
+#ifdef COUNT_DIST_TIME
+                StopW stopw = StopW();
+#endif
+                dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                adsampling::tot_dist_calculation++;
+                adsampling::tot_full_dist ++;
+                lowerBound = dist;
+                top_candidates.emplace(dist, ep_id);
+                candidate_set.emplace(-dist, ep_id);
+            }
+            else {
+                lowerBound = std::numeric_limits<dist_t>::max();
+                candidate_set.emplace(-lowerBound, ep_id);
+            }
+
+            visited_array[ep_id] = visited_array_tag;
+            int cnt_visit = 0;
+
+            // Iteratively generate candidates and conduct DCOs to maintain the result set R.
+            while (!candidate_set.empty()) {
+                std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
+
+                // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
+                if ((-current_node_pair.first) > lowerBound && (top_candidates.size() == ef || has_deletions == false)) {
+                    break;
+                }
+                candidate_set.pop();
+
+                // Fetch the smallest object in S.
+                tableint current_node_id = current_node_pair.second;
+                int *data = (int *) get_linklist0(current_node_id);
+                size_t size = getListCount((linklistsizeint*)data);
+                if(collect_metrics){
+                    metric_hops++;
+                    metric_distance_computations+=size;
+                }
+
+                // Enumerate all the neighbors of the object and view them as candidates of KNNs.
+                for (size_t j = 1; j <= size; j++) {
+                    int candidate_id = *(data + j);
+                    if (!(visited_array[candidate_id] == visited_array_tag)) {
+                        cnt_visit ++;
+                        visited_array[candidate_id] = visited_array_tag;
+
+                        // If the result set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
+                        if (top_candidates.size() < ef){
+                            char *currObj1 = (getDataByInternalId(candidate_id));
+#ifdef COUNT_DIST_TIME
+                            StopW stopw = StopW();
+#endif
+                            dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                            adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                            adsampling::tot_full_dist ++;
+                            if (!has_deletions || !isMarkedDeleted(candidate_id))
+                                candidate_set.emplace(-dist, candidate_id);
+                            if (!has_deletions || !isMarkedDeleted(candidate_id))
+                                top_candidates.emplace(dist, candidate_id);
+                            if (!top_candidates.empty())
+                                lowerBound = top_candidates.top().first;
+                        }
+                            // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
+                        else {
+                            char *currObj1 = (getDataByInternalId(candidate_id));
+#ifdef COUNT_DIST_TIME
+                            StopW stopw = StopW();
+#endif
+                            dist_t dist;
+                            if(PQ->naive_product_map_dist(candidate_id) - PQ->node_cluster_dist_[candidate_id] > lowerBound) continue;
+                            else dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                            adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                            if (top_candidates.size() < ef || lowerBound > dist) {
+                                candidate_set.emplace(-dist, candidate_id);
+                                if (!has_deletions || !isMarkedDeleted(candidate_id))
+                                    top_candidates.emplace(dist, candidate_id);
+
+                                if (top_candidates.size() > ef)
+                                    top_candidates.pop();
+
+                                if (!top_candidates.empty())
+                                    lowerBound = top_candidates.top().first;
+                            }
+                        }
+                    }
+                }
+            }
+            adsampling::tot_dist_calculation += cnt_visit;
+            visited_list_pool_->releaseVisitedList(vl);
+            return top_candidates;
+        }
+
+        template <bool has_deletions, bool collect_metrics=false>
+        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
+        searchBaseLayerPQstar(tableint ep_id, const void *data_point, size_t ef,size_t k) const {
+            VisitedList *vl = visited_list_pool_->getFreeVisitedList();
+            vl_type *visited_array = vl->mass;
+            vl_type visited_array_tag = vl->curV;
+
+            // answers        - the KNN set R1
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> answers;
+            // top_candidates - the result set R2
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
+            // candidate_set  - the search set S
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
+
+            dist_t lowerBound;
+            dist_t lowerBoundcan;
+            // Insert the entry point to the result and search set with its exact distance as a key.
+            if (!has_deletions || !isMarkedDeleted(ep_id)) {
+#ifdef COUNT_DIST_TIME
+                StopW stopw = StopW();
+#endif
+                dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                lowerBound = dist;
+                lowerBoundcan = dist;
+                answers.emplace(dist, ep_id);
+                top_candidates.emplace(dist, ep_id);
+                candidate_set.emplace(-dist, ep_id);
+            }
+            else {
+                lowerBound = std::numeric_limits<dist_t>::max();
+                lowerBoundcan = std::numeric_limits<dist_t>::max();
+                candidate_set.emplace(-lowerBound, ep_id);
+            }
+
+            visited_array[ep_id] = visited_array_tag;
+
+            // Iteratively generate candidates and conduct DCOs to maintain the result set R.
+            while (!candidate_set.empty()) {
+                std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
+
+                // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
+                if ((-current_node_pair.first) > top_candidates.top().first && (top_candidates.size() == ef || has_deletions == false)) {
+                    break;
+                }
+                candidate_set.pop();
+
+                // Fetch the smallest object in S.
+                tableint current_node_id = current_node_pair.second;
+                int *data = (int *) get_linklist0(current_node_id);
+                size_t size = getListCount((linklistsizeint*)data);
+                if(collect_metrics){
+                    metric_hops++;
+                    metric_distance_computations+=size;
+                }
+
+
+                // Enumerate all the neighbors of the object and view them as candidates of KNNs.
+                for (size_t j = 1; j <= size; j++) {
+                    int candidate_id = *(data + j);
+                    if (!(visited_array[candidate_id] == visited_array_tag)) {
+                        visited_array[candidate_id] = visited_array_tag;
+
+                        // If the KNN set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
+                        if (answers.size() < k){
+                            char *currObj1 = (getDataByInternalId(candidate_id));
+#ifdef COUNT_DIST_TIME
+                            StopW stopw = StopW();
+#endif
+                            dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                            adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                            if (!has_deletions || !isMarkedDeleted(candidate_id)){
+                                candidate_set.emplace(-dist, candidate_id);
+                                top_candidates.emplace(dist, candidate_id);
+                                answers.emplace(dist, candidate_id);
+                            }
+                            if (!answers.empty())
+                                lowerBound = answers.top().first;
+                            if (!top_candidates.empty())
+                                lowerBoundcan = top_candidates.top().first;
+                        }
+                            // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
+                        else {
+                            char *currObj1 = (getDataByInternalId(candidate_id));
+                            dist_t app_dist = PQ->naive_product_map_dist(candidate_id) ;
+                            if(app_dist - PQ->node_cluster_dist_[candidate_id] > lowerBound){
+                                if(top_candidates.size() < ef || lowerBoundcan > app_dist){
+                                    top_candidates.emplace(app_dist, candidate_id);
+                                    candidate_set.emplace(-app_dist, candidate_id);
+                                }
+                                if(top_candidates.size() > ef){
+                                    top_candidates.pop();
+                                }
+                                if (!top_candidates.empty())
+                                    lowerBoundcan = top_candidates.top().first;
+                            }
+                            else{
+                                dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+                                candidate_set.emplace(-dist, candidate_id);
+                                if(!has_deletions || !isMarkedDeleted(candidate_id)){
+                                    top_candidates.emplace(dist, candidate_id);
+                                    answers.emplace(dist, candidate_id);
+                                }
+                                if(top_candidates.size() > ef)
+                                    top_candidates.pop();
+                                if(answers.size() > k)
+                                    answers.pop();
+
+                                if (!answers.empty())
+                                    lowerBound = answers.top().first;
+                                if (!top_candidates.empty())
+                                    lowerBoundcan = top_candidates.top().first;
+                            }
+                        }
+                    }
+                }
+            }
+            visited_list_pool_->releaseVisitedList(vl);
+            return answers;
+        }
+
+        template <bool has_deletions, bool collect_metrics=false>
+        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
+        searchBaseLayerPQsimd(tableint ep_id, const void *data_point, size_t ef) const {
+            VisitedList *vl = visited_list_pool_->getFreeVisitedList();
+            vl_type *visited_array = vl->mass;
+            vl_type visited_array_tag = vl->curV;
+
+            // top_candidates - the result set R
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
+            // candidate_set  - the search set S
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
+
+            dist_t lowerBound;
+            // Insert the entry point to the result and search set with its exact distance as a key.
+            if (!has_deletions || !isMarkedDeleted(ep_id)) {
+#ifdef COUNT_DIST_TIME
+                StopW stopw = StopW();
+#endif
+                dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                adsampling::tot_dist_calculation++;
+                adsampling::tot_full_dist ++;
+                lowerBound = dist;
+                top_candidates.emplace(dist, ep_id);
+                candidate_set.emplace(-dist, ep_id);
+            }
+            else {
+                lowerBound = std::numeric_limits<dist_t>::max();
+                candidate_set.emplace(-lowerBound, ep_id);
+            }
+
+            visited_array[ep_id] = visited_array_tag;
+            int cnt_visit = 0;
+
+            // Iteratively generate candidates and conduct DCOs to maintain the result set R.
+            while (!candidate_set.empty()) {
+                std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
+
+                // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
+                if ((-current_node_pair.first) > lowerBound && (top_candidates.size() == ef || has_deletions == false)) {
+                    break;
+                }
+                candidate_set.pop();
+
+                // Fetch the smallest object in S.
+                tableint current_node_id = current_node_pair.second;
+                int *data = (int *) get_linklist0(current_node_id);
+                size_t size = getListCount((linklistsizeint*)data);
+                if(collect_metrics){
+                    metric_hops++;
+                    metric_distance_computations+=size;
+                }
+
+                // Enumerate all the neighbors of the object and view them as candidates of KNNs.
+                std::vector<unsigned> ids;
+                int not_vis_count = 0;
+                for (size_t j = 1; j <= size; j++){
+                    int candidate_id = *(data + j);
+                    if (!(visited_array[candidate_id] == visited_array_tag)){
+                        not_vis_count ++;
+                        visited_array[candidate_id] = visited_array_tag;
+                        ids.push_back(candidate_id);
+                    }
+                }
+                cnt_visit += not_vis_count;
+                while(ids.size()%4!=0) ids.push_back(0);
+                auto res = PQ->sse4_dist_sacn(ids.data(),ids.size());
+
+                for (size_t j = 0; j < not_vis_count; j++) {
+                    int candidate_id = ids[j];
+                    // If the result set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
+                    if (top_candidates.size() < ef){
+                        char *currObj1 = (getDataByInternalId(candidate_id));
+#ifdef COUNT_DIST_TIME
+                        StopW stopw = StopW();
+#endif
+                        dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                        adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                        adsampling::tot_full_dist ++;
+                        if (!has_deletions || !isMarkedDeleted(candidate_id))
+                            candidate_set.emplace(-dist, candidate_id);
+                        if (!has_deletions || !isMarkedDeleted(candidate_id))
+                            top_candidates.emplace(dist, candidate_id);
+                        if (!top_candidates.empty())
+                            lowerBound = top_candidates.top().first;
+                    }
+                        // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
+                    else {
+                        char *currObj1 = (getDataByInternalId(candidate_id));
+#ifdef COUNT_DIST_TIME
+                        StopW stopw = StopW();
+#endif
+                        dist_t dist;
+                        if(res[j] - PQ->node_cluster_dist_[candidate_id] > lowerBound) continue;
+                        else dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                        adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                        if (top_candidates.size() < ef || lowerBound > dist) {
+                            candidate_set.emplace(-dist, candidate_id);
+                            if (!has_deletions || !isMarkedDeleted(candidate_id))
+                                top_candidates.emplace(dist, candidate_id);
+
+                            if (top_candidates.size() > ef)
+                                top_candidates.pop();
+
+                            if (!top_candidates.empty())
+                                lowerBound = top_candidates.top().first;
+                        }
+                    }
+                }
+            }
+            adsampling::tot_dist_calculation += cnt_visit;
+            visited_list_pool_->releaseVisitedList(vl);
+            return top_candidates;
+        }
+
+
+        template <bool has_deletions, bool collect_metrics=false>
+        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
+        searchBaseLayerPQstarsimd(tableint ep_id, const void *data_point, size_t ef, size_t k) const {
+            VisitedList *vl = visited_list_pool_->getFreeVisitedList();
+            vl_type *visited_array = vl->mass;
+            vl_type visited_array_tag = vl->curV;
+            // answers        - the KNN set R1
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> answers;
+            // top_candidates - the result set R
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
+            // candidate_set  - the search set S
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
+
+            dist_t lowerBound;
+            dist_t lowerBoundcan;
+            // Insert the entry point to the result and search set with its exact distance as a key.
+            if (!has_deletions || !isMarkedDeleted(ep_id)) {
+#ifdef COUNT_DIST_TIME
+                StopW stopw = StopW();
+#endif
+                dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                lowerBound = dist;
+                lowerBoundcan = dist;
+                answers.emplace(dist, ep_id);
+                top_candidates.emplace(dist, ep_id);
+                candidate_set.emplace(-dist, ep_id);
+            }
+            else {
+                lowerBound = std::numeric_limits<dist_t>::max();
+                lowerBoundcan = std::numeric_limits<dist_t>::max();
+                candidate_set.emplace(-lowerBound, ep_id);
+            }
+
+            visited_array[ep_id] = visited_array_tag;
+
+            // Iteratively generate candidates and conduct DCOs to maintain the result set R.
+            while (!candidate_set.empty()) {
+                std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
+
+                // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
+                if ((-current_node_pair.first) > top_candidates.top().first && (top_candidates.size() == ef || has_deletions == false)) {
+                    break;
+                }
+                candidate_set.pop();
+
+                // Fetch the smallest object in S.
+                tableint current_node_id = current_node_pair.second;
+                int *data = (int *) get_linklist0(current_node_id);
+                size_t size = getListCount((linklistsizeint*)data);
+                if(collect_metrics){
+                    metric_hops++;
+                    metric_distance_computations+=size;
+                }
+
+                // Enumerate all the neighbors of the object and view them as candidates of KNNs.
+                std::vector<unsigned> ids;
+                int not_vis_count = 0;
+                for (size_t j = 1; j <= size; j++){
+                    int candidate_id = *(data + j);
+                    if (!(visited_array[candidate_id] == visited_array_tag)){
+                        not_vis_count ++;
+                        visited_array[candidate_id] = visited_array_tag;
+                        ids.push_back(candidate_id);
+                    }
+                }
+                while(ids.size()%4!=0) ids.push_back(0);
+                auto res = PQ->sse4_dist_sacn(ids.data(),ids.size());
+
+                for (size_t j = 0; j < not_vis_count; j++) {
+                    int candidate_id = ids[j];
+                    // If the result set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
+                    if (answers.size() < k){
+                        char *currObj1 = (getDataByInternalId(candidate_id));
+#ifdef COUNT_DIST_TIME
+                        StopW stopw = StopW();
+#endif
+                        dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                        adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                        if (!has_deletions || !isMarkedDeleted(candidate_id)){
+                            candidate_set.emplace(-dist, candidate_id);
+                            top_candidates.emplace(dist, candidate_id);
+                            answers.emplace(dist, candidate_id);
+                        }
+                        if (!answers.empty())
+                            lowerBound = answers.top().first;
+                        if (!top_candidates.empty())
+                            lowerBoundcan = top_candidates.top().first;
+                    }
+                        // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
+                    else {
+                        char *currObj1 = (getDataByInternalId(candidate_id));
+                        if(res[j] - PQ->node_cluster_dist_[candidate_id] > lowerBound){
+                            if(top_candidates.size() < ef || lowerBoundcan > res[j]){
+                                top_candidates.emplace(res[j], candidate_id);
+                                candidate_set.emplace(-res[j], candidate_id);
+                            }
+                            if(top_candidates.size() > ef){
+                                top_candidates.pop();
+                            }
+                            if (!top_candidates.empty())
+                                lowerBoundcan = top_candidates.top().first;
+                        }
+                        else{
+                            dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+                            candidate_set.emplace(-dist, candidate_id);
+                            if(!has_deletions || !isMarkedDeleted(candidate_id)){
+                                top_candidates.emplace(dist, candidate_id);
+                                answers.emplace(dist, candidate_id);
+                            }
+                            if(top_candidates.size() > ef)
+                                top_candidates.pop();
+                            if(answers.size() > k)
+                                answers.pop();
+
+                            if (!answers.empty())
+                                lowerBound = answers.top().first;
+                            if (!top_candidates.empty())
+                                lowerBoundcan = top_candidates.top().first;
+                        }
+                    }
+                }
+            }
+            visited_list_pool_->releaseVisitedList(vl);
+            return answers;
+        }
+
         void getNeighborsByHeuristic2(
                 std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> &top_candidates,
         const size_t M) {
@@ -1388,6 +1985,9 @@ namespace hnswlib {
         searchKnn(void *query_data, size_t k, int adaptive=0) const {
             
             std::priority_queue<std::pair<dist_t, labeltype >> result;
+            if(3<=adaptive&&adaptive<=6){
+                PQ->calc_dist_map((float*)query_data);
+            }
             if (cur_element_count == 0) return result;
 
             tableint currObj = enterpoint_node_;
@@ -1418,7 +2018,7 @@ namespace hnswlib {
                         if (cand < 0 || cand > max_elements_)
                             throw std::runtime_error("cand error");
                         adsampling::tot_dist_calculation ++;
-                        if(adaptive){
+                        if(adaptive==1 || adaptive==2){
 #ifdef COUNT_DIST_TIME
                             StopW stopw = StopW();
 #endif
@@ -1427,6 +2027,16 @@ namespace hnswlib {
                             adsampling::distance_time += stopw.getElapsedTimeMicro();
 #endif
                             if(d > 0){
+                                curdist = d;
+                                currObj = cand;
+                                changed = true;
+                            }
+                        }
+                        else if(3<=adaptive&&adaptive<=6){
+                            dist_t d;
+                            if(PQ->naive_product_map_dist(cand) - PQ->node_cluster_dist_[cand] > curdist) continue;
+                            else d = fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_);
+                            if(d < curdist){
                                 curdist = d;
                                 currObj = cand;
                                 changed = true;
@@ -1456,11 +2066,19 @@ namespace hnswlib {
             if (num_deleted_) {
                 if(adaptive == 1) top_candidates=searchBaseLayerADstar<true,true>(currObj, query_data, std::max(ef_, k), k);
                 else if(adaptive == 2) top_candidates=searchBaseLayerAD<true,true>(currObj, query_data, std::max(ef_, k));
+                else if(adaptive == 3) top_candidates=searchBaseLayerPQ<true, true>(currObj, query_data, std::max(ef_, k));
+                else if(adaptive == 4) top_candidates=searchBaseLayerPQsimd<true, true>(currObj, query_data, std::max(ef_, k));
+                else if(adaptive == 5) top_candidates=searchBaseLayerPQstar<true,true>(currObj, query_data, std::max(ef_, k), k);
+                else if(adaptive == 6) top_candidates=searchBaseLayerPQstarsimd<true, true>(currObj, query_data, std::max(ef_, k), k);
                 else top_candidates=searchBaseLayerST<true,true>(currObj, query_data, std::max(ef_, k));
             }
             else{
                 if(adaptive == 1) top_candidates=searchBaseLayerADstar<true,true>(currObj, query_data, std::max(ef_, k), k);
                 else if(adaptive == 2) top_candidates=searchBaseLayerAD<true,true>(currObj, query_data, std::max(ef_, k));
+                else if(adaptive == 3) top_candidates=searchBaseLayerPQ<true, true>(currObj, query_data, std::max(ef_, k));
+                else if(adaptive == 4) top_candidates=searchBaseLayerPQsimd<true, true>(currObj, query_data, std::max(ef_, k));
+                else if(adaptive == 5) top_candidates=searchBaseLayerPQstar<true,true>(currObj, query_data, std::max(ef_, k), k);
+                else if(adaptive == 6) top_candidates=searchBaseLayerPQstarsimd<true, true>(currObj, query_data, std::max(ef_, k), k);
                 else top_candidates=searchBaseLayerST<false,true>(currObj, query_data, std::max(ef_, k));
             }
 
@@ -1475,6 +2093,50 @@ namespace hnswlib {
             }
             return result;
         };
+
+        //max heap
+        std::vector<std::tuple<unsigned,float,float> >
+        searchKnnlogger(void *query_data, size_t k, int adaptive=0) const {
+            std::vector<std::tuple<unsigned,float,float> > logger, tmp;
+            if (cur_element_count == 0) return logger;
+            tableint currObj = enterpoint_node_;
+            dist_t curdist = fstdistfunc_(query_data, getDataByInternalId(enterpoint_node_), dist_func_param_);
+            for (int level = maxlevel_; level > 0; level--) {
+
+                bool changed = true;
+                while (changed) {
+
+                    changed = false;
+                    unsigned int *data;
+
+                    data = (unsigned int *) get_linklist(currObj, level);
+                    int size = getListCount(data);
+                    metric_hops++;
+                    metric_distance_computations+=size;
+
+                    tableint *datal = (tableint *) (data + 1);
+                    for (int i = 0; i < size; i++) {
+                        tableint cand = datal[i];
+                        if (cand < 0 || cand > max_elements_)
+                            throw std::runtime_error("cand error");
+                        adsampling::tot_dist_calculation ++;
+                        dist_t d = fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_);
+                        tmp.emplace_back(cand, d, curdist);
+                        if (d < curdist) {
+                            curdist = d;
+                            currObj = cand;
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            logger = searchBaseLayerlogger<true,true>(currObj, query_data, std::max(ef_, k), k, adaptive);
+            for(auto u:tmp)
+                logger.push_back(u);
+            return logger;
+        };
+
+
 
         void checkIntegrity(){
             int connections_checked=0;
@@ -1509,6 +2171,35 @@ namespace hnswlib {
             std::cout << "integrity ok, checked " << connections_checked << " connections\n";
 
         }
+
+        void encoder_origin_data(){
+            PQ->pq_mp = new unsigned char[PQ->nd_ * PQ->sub_vector];
+            PQ->node_cluster_dist_ = new float[PQ->nd_];
+            double ave_dist = 0.0;
+#pragma omp parallel for
+            for (int i = 0; i < PQ->nd_; i++) {
+                float dist_to_centroid = 0.0;
+                for (int j = 0; j < PQ->sub_vector; j++) {
+                    uint8_t belong = 0;
+                    float dist = naive_l2_dist_calc((float *)getDataByInternalId(i), PQ->pq_book[j][0].data(), PQ->sub_dim);
+                    for (int k = 1; k < PQ->sub_cluster_count; k++) {
+                        float new_dist = naive_l2_dist_calc((float *)getDataByInternalId(i) + j * PQ->sub_dim, PQ->pq_book[j][k].data(),
+                                                            PQ->sub_dim);
+                        if (new_dist < dist) {
+                            belong = k;
+                            dist = new_dist;
+                        }
+                    }
+                    dist_to_centroid += dist;
+                    PQ->pq_mp[i * PQ->sub_vector + j] = belong;
+                }
+                PQ->node_cluster_dist_[i] = dist_to_centroid;
+#pragma omp critical
+                ave_dist += dist_to_centroid;
+            }
+            std::cerr << "Encoder ave dist:: " << ave_dist / PQ->nd_ << std::endl;
+        }
+
 
     };
 

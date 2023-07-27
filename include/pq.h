@@ -11,8 +11,7 @@
 namespace Index_PQ {
     class Quantizer {
     public:
-        Quantizer(unsigned num, unsigned dimension, float *data) {
-            data_ = data;
+        Quantizer(unsigned num, unsigned dimension) {
             nd_ = num;
             dimension_ = dimension;
         }
@@ -27,7 +26,6 @@ namespace Index_PQ {
         unsigned dimension_, nd_;
         uint8_t *pq_mp;
         float *node_cluster_dist_;
-        float *data_;
         Eigen::MatrixXf A_;
 
 
@@ -49,35 +47,7 @@ namespace Index_PQ {
             }
         }
 
-        void encoder_origin_data() {
-            pq_mp = new unsigned char[nd_ * sub_vector];
-            node_cluster_dist_ = new float[nd_];
-            double ave_dist = 0.0;
-#pragma omp parallel for
-            for (int i = 0; i < nd_; i++) {
-                float dist_to_centroid = 0.0;
-                for (int j = 0; j < sub_vector; j++) {
-                    uint8_t belong = 0;
-                    float dist = naive_l2_dist_calc(data_ + i * dimension_, pq_book[j][0].data(), sub_dim);
-                    for (int k = 1; k < sub_cluster_count; k++) {
-                        float new_dist = naive_l2_dist_calc(data_ + i * dimension_ + j * sub_dim, pq_book[j][k].data(),
-                                                            sub_dim);
-                        if (new_dist < dist) {
-                            belong = k;
-                            dist = new_dist;
-                        }
-                    }
-                    dist_to_centroid += dist;
-                    pq_mp[i * sub_vector + j] = belong;
-                }
-                node_cluster_dist_[i] = dist_to_centroid;
-#pragma omp critical
-                ave_dist += dist_to_centroid;
-            }
-            std::cerr << "Encoder ave dist:: " << ave_dist / nd_ << std::endl;
-        }
-
-        void calc_dist_map(const float *query) {
+        void calc_dist_map(float *query) {
             for (unsigned i = 0; i < sub_vector; i++) {
                 for (unsigned j = 0; j < sub_cluster_count; j++) {
                     dist_mp[i * sub_cluster_count + j] = naive_l2_dist_calc(query + i * sub_dim, &pq_book[i][j][0],
@@ -163,6 +133,7 @@ namespace Index_PQ {
 
         float *sse4_dist_sacn(const unsigned *id, unsigned num) {
             auto res = new float[num];
+            float arr[4];
             for (int i = 0; i < num; i += 4) {
                 __m128 candidate_dist;
                 const uint8_t *const pqcode0 = pq_mp + id[i] * sub_vector;
@@ -170,7 +141,8 @@ namespace Index_PQ {
                 const uint8_t *const pqcode2 = pq_mp + id[i + 2] * sub_vector;
                 const uint8_t *const pqcode3 = pq_mp + id[i + 3] * sub_vector;
                 sse4_product_map_dist(pqcode0, pqcode1, pqcode2, pqcode3, dist_mp, candidate_dist);
-                _mm_store_ps(res + i, candidate_dist);
+                _mm_store_ps(arr, candidate_dist);
+                memcpy(res + i, arr, 16);
             }
             return res;
         }
@@ -178,6 +150,7 @@ namespace Index_PQ {
 
         float *avx8_dist_sacn(const unsigned *id, unsigned num) {
             auto res = new float[num];
+            float arr[8];
             for (int i = 0; i < num; i += 8) {
                 __m256 candidate_dist;
                 const uint8_t *const pqcode0 = pq_mp + id[i] * sub_vector;
@@ -190,7 +163,8 @@ namespace Index_PQ {
                 const uint8_t *const pqcode7 = pq_mp + id[i + 7] * sub_vector;
                 axv8_product_map_dist(pqcode0, pqcode1, pqcode2, pqcode3, pqcode4, pqcode5, pqcode6, pqcode7, dist_mp,
                                       candidate_dist);
-                _mm256_store_ps(res + i, candidate_dist);
+                _mm256_store_ps(arr, candidate_dist);
+                memcpy(res + i, arr, 32);
             }
             return res;
         }

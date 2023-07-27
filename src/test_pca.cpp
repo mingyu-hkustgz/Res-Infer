@@ -19,21 +19,14 @@ int main(int argc, char **argv) {
     load_float_data(argv[3], test_load, test_num, test_dim);
     Index_PCA::PCA PCA(points_num, dim, data_load);
     PCA.load_project_matrix(argv[4]);
-    PCA.load_pca_mean_(argv[5]);
-    std::cout<<"pca project vector"<<std::endl;
-    for(int i=0;i<3;i++){
-        for(int j=0;j<dim;j++){
-            std::cout<<train_load[i *dim + j]<<" ";
-        }
-        std::cout<<endl;
-    }
     std::cout<<"test project vector"<<std::endl;
-    PCA.pca_transform(test_load, test_num,test_dim);
-    for(int i =0;i<3;i++){
-        for(int j=0;j<dim;j++){
-            std::cout<<test_load[i*dim + j]<<" ";
-        }
-        std::cout<<endl;
+    PCA.project_vector(test_load, test_num);
+    for(int i=1;i<20;i++){
+        std::cout<<naive_l2_dist_calc(test_load,test_load +i *dim,dim)<<" ";
+    }
+    std::cout<<endl;
+    for(int i=1;i<20;i++){
+        std::cout<<naive_l2_dist_calc(train_load,train_load +i *dim,dim)<<" ";
     }
     return 0;
 }

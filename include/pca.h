@@ -14,13 +14,14 @@ namespace Index_PCA{
                 data_ = data;
             }
 
-
-
-        void pca_transform(float *raw_data, unsigned num,unsigned dim) {
-            Eigen::MatrixXf Q(num, dim);
+        /*
+         * note that we do not add feature normalization
+         */
+        void project_vector(float *raw_data, unsigned num) const {
+            Eigen::MatrixXf Q(num, dimension_);
             for (int i = 0; i < num; i++) {
-                for (int j = 0; j < dim; j++) {
-                    Q(i, j) = raw_data[i * dim + j] - mean_[j];// feature normalization
+                for (int j = 0; j < dimension_; j++) {
+                    Q(i, j) = raw_data[i * dimension_ + j];
                 }
             }
             Q = Q * X_;
@@ -42,12 +43,6 @@ namespace Index_PCA{
                 }
             }
         }
-        void load_pca_mean_(const char *filename){
-            unsigned dim,num;
-            load_float_data(filename, mean_, num,dim);
-        }
-
-
 
         float *mean_;
         Eigen::MatrixXf X_;
