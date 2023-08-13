@@ -8,10 +8,9 @@
 namespace Index_PCA{
     class PCA{
         public:
-            PCA(unsigned num, unsigned dim, float *data){
+            PCA(unsigned num, unsigned dim){
                 nd_ = num;
                 dimension_ = dim;// the project dim
-                data_ = data;
             }
 
         /*
@@ -44,11 +43,9 @@ namespace Index_PCA{
             }
         }
 
-        float *mean_;
         Eigen::MatrixXf X_;
         Eigen::MatrixXd vec, val;
-        unsigned nd_,dimension_;
-        float *data_;
+        unsigned nd_,dimension_,proj_dim;
     };
 
 }

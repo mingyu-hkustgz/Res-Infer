@@ -139,26 +139,26 @@ int main(int argc, char *argv[]) {
 
 
     Matrix<float> Q(query_path);
-    Matrix<unsigned> G(groundtruth_path);
     L2Space l2space(Q.d);
     HierarchicalNSW<float> *appr_alg = new HierarchicalNSW<float>(&l2space, index_path, false);
     std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
-    Index_PCA::PCA PCA(appr_alg->cur_element_count, Q.d);
-    PCA.load_project_matrix(transformation_path);
-    PCA.project_vector(Q.data, count_bound);
-    appr_alg->PCA = &PCA;
+    Index_PQ::Quantizer PQ(appr_alg->cur_element_count, Q.d);
+    PQ.load_product_codebook(codebook_path);
+    PQ.load_project_matrix(transformation_path);
+    PQ.project_vector(Q.data, count_bound);
+    appr_alg->PQ = &PQ;
+    appr_alg->encoder_origin_data();
 
     cerr << "test begin" << endl;
     vector<std::priority_queue<std::pair<float, labeltype >>> answers;
     vector<vector<tuple<unsigned, float, float> > > res(Q.n);
     res = test_vs_recall(Q.data, appr_alg->max_elements_, Q.n, *appr_alg, Q.d, answers, subk, randomize);
-    std::ofstream out(logger_path, std::ios::binary);
     std::vector<float> acc, thresh;
     std::vector<std::vector<float> > app;
     std::vector<unsigned> dim_tag;
     std::vector<std::vector<unsigned> > cnt_tag;
     unsigned sub_dim = 32;
-    unsigned feature_dim = 2, model_count = Q.d / sub_dim;
+    unsigned feature_dim = 2, model_count = 1;
     feature_dim += model_count;
     std::cerr << "feature dim:: " << feature_dim << " models:: " << model_count << " sub dim:: " << sub_dim << endl;
     unsigned all_items = 0;
@@ -175,28 +175,23 @@ int main(int argc, char *argv[]) {
     app.resize(model_count);
     for (int i = 0; i < model_count; i++) app[i].resize(all_items);
     std::cerr << sub_dim << endl;
-#pragma omp parallel for
     for (int i = 0; i < count_bound; i++) {
+        float *q = Q.data + i * Q.d;
+        appr_alg->PQ->calc_dist_map(q);
         for (int j = 0; j < res[i].size(); j++) {
             auto u = res[i][j];
             unsigned tag = cnt_tag[i][j];
             unsigned id = get<0>(u);
             float node_dist = get<1>(u);
             float thresh_dist = get<2>(u);
-            float app_dist = 0;
+            float app_dist = appr_alg->PQ->naive_product_map_dist(id);
             unsigned app_count = 0;
-            auto *p = (float*) appr_alg->getDataByInternalId(id);
-            float *q = Q.data + i * Q.d;
-            for (unsigned k = 0; k < Q.d; k += sub_dim) {
-                app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
-                app[app_count][tag] = app_dist;
-                app_count++;
-            }
+            app[app_count][tag] = app_dist;
             acc[tag] = node_dist;
             thresh[tag] = thresh_dist;
         }
     }
-
+    std::ofstream out(logger_path, std::ios::binary);
     for (int i = 0; i < count_bound; i++) {
         for (int j = 0; j < res[i].size(); j++) {
             auto u = res[i][j];
@@ -211,12 +206,12 @@ int main(int argc, char *argv[]) {
             out.write((char *) &thresh_dist, sizeof(float));
         }
     }
-
+    out.close();
 
     std::cerr << "save finished" << endl;
     if (isFileExists_ifstream((linear_path))) {
         Linear::Linear L(Q.d);
-        L.recall = 0.999999;
+        L.recall = 0.9999;
         L.load_linear_model(linear_path);
         std::ofstream fout(linear_path);
         fout << L.model_count << endl;

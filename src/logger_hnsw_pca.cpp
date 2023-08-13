@@ -46,7 +46,7 @@ vector<vector<tuple<unsigned, float, float> > >
 test_vs_recall(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
                vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
     vector<size_t> efs;
-    efs.push_back(1500);
+    efs.push_back(500);
     vector<vector<tuple<unsigned, float, float> > > hnsw_logger(qsize);
     for (size_t ef: efs) {
         appr_alg.setEf(ef);
@@ -88,11 +88,12 @@ int main(int argc, char *argv[]) {
     char transformation_path[256] = "";
     char codebook_path[256] = "";
     char linear_path[256] = "";
+    char logger_path[256] = "";
     int randomize = 0;
     int subk = 100;
 
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:o:", longopts, &ind);
         switch (iarg) {
             case 'd':
                 if (optarg)randomize = atoi(optarg);
@@ -130,19 +131,18 @@ int main(int argc, char *argv[]) {
             case 'l':
                 if (optarg)strcpy(linear_path, optarg);
                 break;
+            case 'o':
+                if (optarg)strcpy(logger_path, optarg);
+                break;
         }
     }
 
 
     Matrix<float> Q(query_path);
-    Matrix<unsigned> G(groundtruth_path);
-    float *data;
-    unsigned points_num, dim;
-    load_float_data(dataset,data,points_num,dim);
     L2Space l2space(Q.d);
     HierarchicalNSW<float> *appr_alg = new HierarchicalNSW<float>(&l2space, index_path, false);
     std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
-    Index_PCA::PCA PCA(points_num, dim, data);
+    Index_PCA::PCA PCA(appr_alg->cur_element_count, Q.d);
     PCA.load_project_matrix(transformation_path);
     PCA.project_vector(Q.data, count_bound);
     appr_alg->PCA = &PCA;
@@ -151,7 +151,6 @@ int main(int argc, char *argv[]) {
     vector<std::priority_queue<std::pair<float, labeltype >>> answers;
     vector<vector<tuple<unsigned, float, float> > > res(Q.n);
     res = test_vs_recall(Q.data, appr_alg->max_elements_, Q.n, *appr_alg, Q.d, answers, subk, randomize);
-    std::ofstream out("./logger/gist_logger_PCA_32_hnsw0.fvecs", std::ios::binary);
     std::vector<float> acc, thresh;
     std::vector<std::vector<float> > app;
     std::vector<unsigned> dim_tag;
@@ -185,8 +184,8 @@ int main(int argc, char *argv[]) {
             float app_dist = 0;
             unsigned app_count = 0;
             auto *p = (float*) appr_alg->getDataByInternalId(id);
-            float *q = Q.data + i * dim;
-            for (unsigned k = 0; k < dim; k += sub_dim) {
+            float *q = Q.data + i * Q.d;
+            for (unsigned k = 0; k < Q.d; k += sub_dim) {
                 app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
                 app[app_count][tag] = app_dist;
                 app_count++;
@@ -195,7 +194,7 @@ int main(int argc, char *argv[]) {
             thresh[tag] = thresh_dist;
         }
     }
-
+    std::ofstream out(logger_path, std::ios::binary);
     for (int i = 0; i < count_bound; i++) {
         for (int j = 0; j < res[i].size(); j++) {
             auto u = res[i][j];
@@ -210,11 +209,11 @@ int main(int argc, char *argv[]) {
             out.write((char *) &thresh_dist, sizeof(float));
         }
     }
-
+    out.close();
 
     std::cerr << "save finished" << endl;
     if (isFileExists_ifstream((linear_path))) {
-        Linear::Linear L(dim);
+        Linear::Linear L(Q.d);
         L.recall = 0.999999;
         L.load_linear_model(linear_path);
         std::ofstream fout(linear_path);

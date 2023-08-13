@@ -22,7 +22,7 @@ We explain the important variables for the enhanced IVF as follows.
 #include "utils.h"
 #include "pq.h"
 #include "pca.h"
-
+#include "linear.h"
 class IVF{
 public:
     size_t N;
@@ -40,6 +40,7 @@ public:
 
     Index_PQ::Quantizer *PQ;
     Index_PCA::PCA *PCA;
+    Linear::Linear *L;
 
     IVF();
     IVF(const Matrix<float> &X, const Matrix<float> &_centroids, int adaptive=0);
@@ -48,6 +49,8 @@ public:
     ResultHeap search(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
 
     ResultHeap search_with_quantizer(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
+
+    ResultHeap search_with_pca(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
 
     ResultHeap search_with_quantizer_simd(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
 
@@ -67,11 +70,11 @@ IVF::IVF(){
 }
 
 IVF::IVF(const Matrix<float> &X, const Matrix<float> &_centroids, int adaptive){
-    
+
     N = X.n;
     D = X.d;
     C = _centroids.n;
-    
+
     assert(D > 32);
     start = new size_t [C];
     len   = new size_t [C];
@@ -153,13 +156,13 @@ ResultHeap IVF::search(float* query, size_t k, size_t nprobe, float distK) const
         centroid_dist[i].first = sqr_dist(query, centroids+i*D, D);
 #ifdef COUNT_DIST_TIME
         adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif               
+#endif
         centroid_dist[i].second = i;
     }
 
     // Find out the closest N_{probe} centroids to the query vector.
     std::partial_sort(centroid_dist, centroid_dist + nprobe, centroid_dist + C);
-    
+
     size_t ncan = 0;
     for(int i=0;i<nprobe;i++)
         ncan += len[centroid_dist[i].second];
@@ -183,23 +186,23 @@ ResultHeap IVF::search(float* query, size_t k, size_t nprobe, float distK) const
             float tmp_dist = sqr_dist(query, L1_data + can * d, d);
 #ifdef COUNT_DIST_TIME
             adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif      
+#endif
             if(d > 0)dist[cur] = tmp_dist;
             else dist[cur] = 0;
             obj[cur] = can;
             cur ++;
-        }    
+        }
     }
     ResultHeap KNNs;
 
     // d == D indicates FDScanning. 
-    if(d == D){ 
+    if(d == D){
         for(int i=0;i<ncan;i++){
             candidates[i].first = dist[i];
             candidates[i].second = id[obj[i]];
         }
         std::partial_sort(candidates, candidates + k, candidates + ncan);
-        
+
         for(int i=0;i<k;i++){
             KNNs.emplace(candidates[i].first, candidates[i].second);
         }
@@ -217,7 +220,7 @@ ResultHeap IVF::search(float* query, size_t k, size_t nprobe, float distK) const
                 float tmp_dist = adsampling::dist_comp(distK, res_data + can * (D-d), query + d, *cur_dist, d);
 #ifdef COUNT_DIST_TIME
                 adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif                     
+#endif
                 if(tmp_dist > 0){
                     KNNs.emplace(tmp_dist, id[can]);
                     if(KNNs.size() > k) KNNs.pop();
@@ -259,7 +262,7 @@ ResultHeap IVF::search_with_quantizer(float* query, size_t k, size_t nprobe, flo
         unsigned cluster_id = centroid_dist[i].second;
         for(int j=0;j<len[cluster_id];j++){
             size_t can = start[cluster_id] + j;
-            if(PQ->naive_product_map_dist(can) - PQ->node_cluster_dist_[can] > thresh) continue;
+            if(L->linear_classifier_default_pq(PQ->naive_product_map_dist(can) - PQ->node_cluster_dist_[can], thresh)) continue;
             float tmp_dist = sqr_dist(query, L1_data + can * D, D);
             if(KNNs.size() < k) KNNs.emplace(tmp_dist,id[can]);
             else if(tmp_dist < KNNs.top().first){
@@ -274,6 +277,94 @@ ResultHeap IVF::search_with_quantizer(float* query, size_t k, size_t nprobe, flo
     return KNNs;
 }
 
+ResultHeap IVF::search_with_pca(float* query, size_t k, size_t nprobe, float distK) const{
+    // the default value of distK is +inf
+    Result* centroid_dist = new Result [C];
+
+    // Find out the closest N_{probe} centroids to the query vector.
+    for(int i=0;i<C;i++){
+#ifdef COUNT_DIST_TIME
+        StopW stopw = StopW();
+#endif
+        centroid_dist[i].first = sqr_dist(query, centroids+i*D, D);
+#ifdef COUNT_DIST_TIME
+        adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+        centroid_dist[i].second = i;
+    }
+
+    // Find out the closest N_{probe} centroids to the query vector.
+    std::partial_sort(centroid_dist, centroid_dist + nprobe, centroid_dist + C);
+
+    size_t ncan = 0;
+    for(int i=0;i<nprobe;i++)
+        ncan += len[centroid_dist[i].second];
+    if(d == D)adsampling::tot_dimension += 1ll * ncan * D;
+    float * dist = new float [ncan];
+    Result * candidates = new Result [ncan];
+    int * obj= new int [ncan];
+
+    // Scan a few initial dimensions and store the distances.
+    // For IVF (i.e., apply FDScanning), it should be D.
+    // For IVF+ (i.e., apply ADSampling without optimizing data layout), it should be 0.
+    // For IVF++ (i.e., apply ADSampling with optimizing data layout), it should be delta_d (i.e., 32).
+    int cur = 0;
+    for(int i=0;i<nprobe;i++){
+        int cluster_id = centroid_dist[i].second;
+        for(int j=0;j<len[cluster_id];j++){
+            size_t can = start[cluster_id] + j;
+#ifdef COUNT_DIST_TIME
+            StopW stopw = StopW();
+#endif
+            float tmp_dist = sqr_dist(query, L1_data + can * d, d);
+#ifdef COUNT_DIST_TIME
+            adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+            if(d > 0)dist[cur] = tmp_dist;
+            else dist[cur] = 0;
+            obj[cur] = can;
+            cur ++;
+        }
+    }
+    ResultHeap KNNs;
+
+    // d < D indicates ADSampling with and without cache-level optimization
+    unsigned tag_model;
+    if(d == 0) tag_model = 0;
+    else tag_model = 1;
+    if(d < D){
+        auto cur_dist = dist;
+        for(int i=0;i<nprobe;i++){
+            int cluster_id = centroid_dist[i].second;
+            for(int j=0;j<len[cluster_id];j++){
+                size_t can = start[cluster_id] + j;
+#ifdef COUNT_DIST_TIME
+                StopW stopw = StopW();
+#endif
+                float tmp_dist = L->multi_linear_classifier_(query + d, res_data + can * (D-d), distK, tag_model, *cur_dist);
+#ifdef COUNT_DIST_TIME
+                adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                if(tmp_dist > 0){
+                    KNNs.emplace(tmp_dist, id[can]);
+                    if(KNNs.size() > k) KNNs.pop();
+                }
+                if(KNNs.size() == k && KNNs.top().first < distK){
+                    distK = KNNs.top().first;
+                }
+                cur_dist++;
+            }
+        }
+    }
+
+    delete [] centroid_dist;
+    delete [] dist;
+    delete [] candidates;
+    delete [] obj;
+    return KNNs;
+}
+
+//float tmp_dist = L->multi_linear_classifier_(query, res_data + can * D, thresh);
 ResultHeap IVF::search_with_quantizer_simd(float* query, size_t k, size_t nprobe, float distK) const{
     // the default value of distK is +inf
     Result* centroid_dist = new Result [C];
@@ -318,7 +409,7 @@ ResultHeap IVF::search_with_quantizer_simd(float* query, size_t k, size_t nprobe
 #endif
         for(int j=0;j<len[cluster_id];j++){
             size_t can = start[cluster_id] + j;
-            if(res[j] - PQ->node_cluster_dist_[can] > thresh) continue;
+            if(L->linear_classifier_default_pq(res[j] - PQ->node_cluster_dist_[can], thresh)) continue;
             float tmp_dist = sqr_dist(query, L1_data + can * D, D);
             if(KNNs.size() < k) KNNs.emplace(tmp_dist,id[can]);
             else if(tmp_dist < KNNs.top().first){
@@ -411,7 +502,7 @@ void IVF::load(char * filename){
     L1_data   = new float [N * d + 10];
     res_data  = new float [N * (D - d) + 10];
     centroids = new float [C * D];
-    
+
     start = new size_t [C];
     len   = new size_t [C];
     id    = new size_t [N];
@@ -423,7 +514,7 @@ void IVF::load(char * filename){
     input.read((char *) start, C * sizeof(size_t));
     input.read((char *) len  , C * sizeof(size_t));
     input.read((char *) id   , N * sizeof(size_t));
-    
+
     input.close();
 }
 

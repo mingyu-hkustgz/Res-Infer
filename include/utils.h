@@ -239,3 +239,8 @@ float naive_l2_dist_calc(const float *q, const float *p, const unsigned &dim) {
     }
     return ans;
 }
+
+bool isFileExists_ifstream(const char *name) {
+    std::ifstream f(name);
+    return f.good();
+}

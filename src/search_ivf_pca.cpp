@@ -26,9 +26,14 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
     struct rusage run_start, run_end;
 
     vector<int> nprobes;
-    nprobes.push_back(10);
-    nprobes.push_back(20);
-    nprobes.push_back(30);
+    nprobes.push_back(25);
+    nprobes.push_back(50);
+    nprobes.push_back(75);
+    nprobes.push_back(100);
+    nprobes.push_back(125);
+    nprobes.push_back(150);
+    nprobes.push_back(175);
+    nprobes.push_back(200);
     for(auto nprobe:nprobes){
         total_time=0;
         adsampling::clear();
@@ -36,7 +41,7 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
 
         for(int i=0;i<Q.n;i++){
             GetCurTime( &run_start);
-            ResultHeap KNNs = ivf.search(Q.data + i * Q.d, k, nprobe);
+            ResultHeap KNNs = ivf.search_with_pca(Q.data + i * Q.d, k, nprobe);
             GetCurTime( &run_end);
             GetTime(&run_start, &run_end, &usr_t, &sys_t);
             total_time += usr_t * 1e6;
@@ -89,12 +94,13 @@ int main(int argc, char * argv[]) {
     char dataset[256] = "";
     char transformation_path[256] = "";
     char codebook_path[256] = "";
+    char linear_path[256] = "";
 
     int randomize = 0;
     int subk = 0;
 
     while(iarg != -1){
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:", longopts, &ind);
         switch (iarg){
             case 'd':
                 if(optarg)randomize = atoi(optarg);
@@ -128,24 +134,30 @@ int main(int argc, char * argv[]) {
             case 'b':
                 if (optarg)strcpy(codebook_path, optarg);
                 break;
+            case 'l':
+                if (optarg)strcpy(linear_path, optarg);
+                break;
         }
     }
 
     Matrix<float> Q(query_path);
     Matrix<unsigned> G(groundtruth_path);
-    Matrix<float> P(transformation_path);
 
     IVF ivf;
     ivf.load(index_path);
-    Index_PCA::PCA PCA(ivf.N, ivf.D, ivf.res_data);
+    Index_PCA::PCA PCA(ivf.N,ivf.D);
     PCA.load_project_matrix(transformation_path);
-    ivf.PCA = &PCA;
-    freopen(result_path,"a",stdout);
 
     StopW stopw = StopW();
     PCA.project_vector(Q.data, Q.n);
-    adsampling::D = Q.d;
     rotation_time = stopw.getElapsedTimeMicro() / Q.n;
+    Linear::Linear L(ivf.D);
+
+    L.load_linear_model(linear_path);
+    ivf.PCA = &PCA;
+    ivf.PCA->proj_dim = 960;
+    ivf.L = &L;
+    freopen(result_path,"a",stdout);
 
     std::cout<<"rotate time:: "<<rotation_time<<std::endl;
     test(Q, G, ivf, subk);

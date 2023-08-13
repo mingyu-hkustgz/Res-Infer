@@ -25,10 +25,14 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
     struct rusage run_start, run_end;
 
     vector<int> nprobes;
+    nprobes.push_back(25);
+    nprobes.push_back(50);
+    nprobes.push_back(75);
     nprobes.push_back(100);
+    nprobes.push_back(125);
+    nprobes.push_back(150);
+    nprobes.push_back(175);
     nprobes.push_back(200);
-    nprobes.push_back(300);
-    
     for(auto nprobe:nprobes){
         total_time=0;
         adsampling::clear();
@@ -138,7 +142,6 @@ int main(int argc, char * argv[]) {
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         adsampling::D = Q.d;
     }
-    std::cout<<"rotate time:: "<<rotation_time<<std::endl;
     IVF ivf;
     ivf.load(index_path);
     test(Q, G, ivf, subk);

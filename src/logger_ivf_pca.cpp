@@ -72,11 +72,12 @@ int main(int argc, char *argv[]) {
     char transformation_path[256] = "";
     char codebook_path[256] = "";
     char linear_path[256] = "";
+    char logger_path[256] = "";
     int randomize = 0;
     int subk = 0;
 
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:o:", longopts, &ind);
         switch (iarg) {
             case 'd':
                 if (optarg)randomize = atoi(optarg);
@@ -114,22 +115,19 @@ int main(int argc, char *argv[]) {
             case 'l':
                 if (optarg)strcpy(linear_path, optarg);
                 break;
+            case 'o':
+                if (optarg)strcpy(logger_path, optarg);
+                break;
         }
     }
-
-    Matrix<float> N(dataset);
     Matrix<float> Q(query_path);
-    Matrix<unsigned> G(groundtruth_path);
-    freopen(result_path, "a", stdout);
     IVF ivf;
     ivf.load(index_path);
-    Index_PCA::PCA PCA(ivf.N, ivf.D, ivf.res_data);
+    Index_PCA::PCA PCA(ivf.N,ivf.D);
     PCA.load_project_matrix(transformation_path);
-    PCA.project_vector(Q.data, count_bound);
+    PCA.project_vector(Q.data, Q.n);
     ivf.PCA = &PCA;
-    cerr << "test begin" << endl;
     auto res = test_logger(Q, ivf, subk);
-    std::ofstream out("./logger/gist_logger_PCA_32_ivf.fvecs");
     std::vector<float> acc, thresh;
     std::vector<std::vector<float> > app;
     std::vector<unsigned> dim_tag;
@@ -175,7 +173,8 @@ int main(int argc, char *argv[]) {
             thresh[tag] = thresh_dist;
         }
     }
-
+    std::cerr<<logger_path<<endl;
+    std::ofstream out(logger_path,std::ios::binary);
     for (int i = 0; i < count_bound; i++) {
         for (int j = 0; j < res[i].size(); j++) {
             auto u = res[i][j];
@@ -190,7 +189,7 @@ int main(int argc, char *argv[]) {
             out.write((char *) &thresh_dist, sizeof(float));
         }
     }
-
+    out.close();
 
     std::cerr << "save finished" << endl;
     if (isFileExists_ifstream((linear_path))) {

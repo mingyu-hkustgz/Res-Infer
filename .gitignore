@@ -1,4 +1,7 @@
 cmake-build-debug
+.idea
+__pycache__
+__pycharm__
 *.fvecs
 *.bin
 *.centroid
@@ -6,3 +9,5 @@ cmake-build-debug
 *.ivf
 *.hnsw
 *.png
+*.index
+data/__pycache__/

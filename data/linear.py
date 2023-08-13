@@ -16,9 +16,9 @@ verbose = False
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='linear regression')
     parser.add_argument('-d', '--dataset', help='dataset', default='deep1M')
-    parser.add_argument('-m', '--method', help='approximate method', default='OPQ')
-    parser.add_argument('-p', '--projdim', help='project dim', default='64')
-    parser.add_argument('-i', '--indextype', help='index type', default='ivf',)
+    parser.add_argument('-m', '--method', help='approximate method', default='pca')
+    parser.add_argument('-p', '--projdim', help='project dim', default='32')
+    parser.add_argument('-i', '--indextype', help='index type', default='hnsw1',)
     parser.add_argument('-v', '--verbose', help='visual option', default=False)
 
     args = vars(parser.parse_args())
@@ -56,10 +56,10 @@ if __name__ == "__main__":
         y_pred = model.predict(X_test)
         print("parameters：", model.coef_, model.intercept_)
 
-        plt.scatter(X[:10000, 0], X[:10000, 1], c=y[:10000], alpha=0.2)
         x_boundary = np.linspace(X[:10000, 0].min(), X[:10000, 0].max(), 100)
         y_boundary = -(model.coef_[0][0] * x_boundary + model.intercept_) / model.coef_[0][1]
         if verbose:
+            plt.scatter(X[:10000, 0], X[:10000, 1], c=y[:10000], alpha=0.2)
             plt.plot(x_boundary, y_boundary, "r--")
             plt.xlabel("approximate dist")
             plt.ylabel("threshold dist")

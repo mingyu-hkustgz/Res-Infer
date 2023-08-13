@@ -20,15 +20,21 @@ using namespace std;
 const int MAXK = 100;
 
 long double rotation_time=0;
+int randomize;
 
 void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int k){
     float sys_t, usr_t, usr_t_sum = 0, total_time=0, search_time=0;
     struct rusage run_start, run_end;
 
     vector<int> nprobes;
+    nprobes.push_back(25);
+    nprobes.push_back(50);
+    nprobes.push_back(75);
     nprobes.push_back(100);
+    nprobes.push_back(125);
+    nprobes.push_back(150);
+    nprobes.push_back(175);
     nprobes.push_back(200);
-    nprobes.push_back(300);
     for(auto nprobe:nprobes){
         total_time=0;
         adsampling::clear();
@@ -36,8 +42,11 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
 
         for(int i=0;i<Q.n;i++){
             GetCurTime( &run_start);
-            //ResultHeap KNNs = ivf.search_with_quantizer(Q.data + i * Q.d, k, nprobe);
-            ResultHeap KNNs = ivf.search_with_quantizer_simd(Q.data + i * Q.d, k, nprobe);
+            ResultHeap KNNs;
+            if(randomize==3)
+                KNNs = ivf.search_with_quantizer(Q.data + i * Q.d, k, nprobe);
+            else
+                KNNs = ivf.search_with_quantizer_simd(Q.data + i * Q.d, k, nprobe);
             GetCurTime( &run_end);
             GetTime(&run_start, &run_end, &usr_t, &sys_t);
             total_time += usr_t * 1e6;
@@ -90,12 +99,12 @@ int main(int argc, char * argv[]) {
     char dataset[256] = "";
     char transformation_path[256] = "";
     char codebook_path[256] = "";
-
-    int randomize = 0;
-    int subk = 0;
+    char linear_path[256] = "";
+    randomize = 0;
+    int subk = 100;
 
     while(iarg != -1){
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:", longopts, &ind);
         switch (iarg){
             case 'd':
                 if(optarg)randomize = atoi(optarg);
@@ -129,18 +138,23 @@ int main(int argc, char * argv[]) {
             case 'b':
                 if (optarg)strcpy(codebook_path, optarg);
                 break;
+            case 'l':
+                if (optarg)strcpy(linear_path, optarg);
+                break;
         }
     }
 
     Matrix<float> Q(query_path);
     Matrix<unsigned> G(groundtruth_path);
-    Matrix<float> P(transformation_path);
 
     IVF ivf;
     ivf.load(index_path);
     Index_PQ::Quantizer PQ(ivf.N, ivf.D);
     PQ.load_product_codebook(codebook_path);
     PQ.load_project_matrix(transformation_path);
+    Linear::Linear L(Q.d);
+    L.load_linear_model(linear_path);
+    ivf.L = &L;
     ivf.PQ = &PQ;
     ivf.encoder_origin_data();
     StopW stopw = StopW();

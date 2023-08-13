@@ -87,8 +87,14 @@ static void test_approx(float *massQ, size_t vecsize, size_t qsize, Hierarchical
 static void test_vs_recall(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
                            vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
     vector<size_t> efs;
-    efs.push_back(1500);
-    cout<<"rotate time:: "<<rotation_time<<endl;
+    efs.push_back(50);
+    efs.push_back(100);
+    efs.push_back(150);
+    efs.push_back(200);
+    efs.push_back(250);
+    efs.push_back(300);
+    efs.push_back(350);
+    efs.push_back(400);
     for (size_t ef : efs) {
         appr_alg.setEf(ef);
         test_approx(massQ, vecsize, qsize, appr_alg, vecdim, answers, k, adaptive);
@@ -127,12 +133,11 @@ int main(int argc, char * argv[]) {
     char dataset[256] = "";
     char transformation_path[256] = "";
     char codebook_path[256] = "";
-
+    char linear_path[256] = "";
     int randomize = 0;
     int subk=100;
-
     while(iarg != -1){
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:", longopts, &ind);
         switch (iarg){
             case 'd':
                 if(optarg)randomize = atoi(optarg);
@@ -165,7 +170,11 @@ int main(int argc, char * argv[]) {
                 if(optarg)strcpy(dataset, optarg);
                 break;
             case 'b':
+                std::cerr<<codebook_path<<endl;
                 if (optarg)strcpy(codebook_path, optarg);
+                break;
+            case 'l':
+                if (optarg)strcpy(linear_path, optarg);
                 break;
         }
     }
@@ -181,15 +190,16 @@ int main(int argc, char * argv[]) {
     Index_PQ::Quantizer PQ(appr_alg->cur_element_count, Q.d);
     PQ.load_product_codebook(codebook_path);
     PQ.load_project_matrix(transformation_path);
+    Linear::Linear L(Q.d);
+    L.load_linear_model(linear_path);
+    appr_alg->L = &L;
     appr_alg->PQ = &PQ;
     appr_alg->encoder_origin_data();
 
-    //    if(randomize){
     StopW stopw = StopW();
     PQ.project_vector(Q.data,Q.n);
     rotation_time = stopw.getElapsedTimeMicro() / Q.n;
     adsampling::D = Q.d;
-//    }
     freopen(result_path,"a",stdout);
 
     size_t k = G.d;
