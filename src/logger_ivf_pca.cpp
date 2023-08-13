@@ -7,7 +7,6 @@
 #include <fstream>
 #include "pq.h"
 #include "pca.h"
-#include "linearmodel.h"
 #include <ctime>
 #include <cmath>
 #include <matrix.h>
@@ -15,20 +14,22 @@
 #include <ivf/ivf.h>
 #include <adsampling.h>
 #include <getopt.h>
+#include "linear.h"
 
 using namespace std;
 
 const int MAXK = 100;
 
 long double rotation_time = 0;
+unsigned count_bound = 1000;
 
-vector<vector<tuple<unsigned, float, float> > >  test_logger(const Matrix<float> &Q, const IVF &ivf, int k) {
+vector<vector<tuple<unsigned, float, float> > > test_logger(const Matrix<float> &Q, const IVF &ivf, int k) {
     vector<int> nprobes;
     nprobes.push_back(100);
-    vector<vector<tuple<unsigned, float, float> > > ivf_logger(Q.n);
+    vector<vector<tuple<unsigned, float, float> > > ivf_logger(count_bound);
     for (auto nprobe: nprobes) {
 #pragma omp parallel for
-        for (int i = 0; i < Q.n; i++) {
+        for (int i = 0; i < count_bound; i++) {
             std::vector<std::tuple<unsigned, float, float> > cur;
             cur = ivf.search_logger(Q.data + i * Q.d, k, nprobe);
             ivf_logger[i] = cur;
@@ -56,7 +57,7 @@ int main(int argc, char *argv[]) {
             {"groundtruth_path",    required_argument, 0, 'g'},
             {"result_path",         required_argument, 0, 'r'},
             {"transformation_path", required_argument, 0, 't'},
-            {"codebook_path", required_argument, 0, 'b'},
+            {"codebook_path",       required_argument, 0, 'b'},
     };
 
     int ind;
@@ -70,12 +71,12 @@ int main(int argc, char *argv[]) {
     char dataset[256] = "";
     char transformation_path[256] = "";
     char codebook_path[256] = "";
-
+    char linear_path[256] = "";
     int randomize = 0;
     int subk = 0;
 
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:", longopts, &ind);
         switch (iarg) {
             case 'd':
                 if (optarg)randomize = atoi(optarg);
@@ -110,64 +111,98 @@ int main(int argc, char *argv[]) {
             case 'b':
                 if (optarg)strcpy(codebook_path, optarg);
                 break;
+            case 'l':
+                if (optarg)strcpy(linear_path, optarg);
+                break;
         }
     }
+
+    Matrix<float> N(dataset);
     Matrix<float> Q(query_path);
     Matrix<unsigned> G(groundtruth_path);
-
+    freopen(result_path, "a", stdout);
     IVF ivf;
     ivf.load(index_path);
-    Index_PCA::PCA PCA(ivf.N,ivf.D, ivf.res_data);
+    Index_PCA::PCA PCA(ivf.N, ivf.D, ivf.res_data);
     PCA.load_project_matrix(transformation_path);
-    PCA.project_vector(Q.data, Q.n);
+    PCA.project_vector(Q.data, count_bound);
     ivf.PCA = &PCA;
+    cerr << "test begin" << endl;
     auto res = test_logger(Q, ivf, subk);
-    std::ofstream out("./logger/gist_logger_PCA_64_ivf.fvecs");
-    unsigned feature_dim = 3;
-    unsigned project_dim = 64;
-    for(int i = 0; i < Q.n; i++){
-        for(auto u:res[i]){
+    std::ofstream out("./logger/gist_logger_PCA_32_ivf.fvecs");
+    std::vector<float> acc, thresh;
+    std::vector<std::vector<float> > app;
+    std::vector<unsigned> dim_tag;
+    std::vector<std::vector<unsigned> > cnt_tag;
+    unsigned sub_dim = 32;
+    unsigned feature_dim = 2, model_count = ivf.D / sub_dim;
+    feature_dim += model_count;
+    std::cerr << "feature dim:: " << feature_dim << " models:: " << model_count << " sub dim:: " << sub_dim << endl;
+    unsigned all_items = 0;
+    cnt_tag.resize(count_bound);
+    for (int i = 0; i < count_bound; i++) {
+        cnt_tag[i].resize(res[i].size());
+        for (int j = 0; j < res[i].size(); j++) {
+            cnt_tag[i][j] = all_items;
+            all_items++;
+        }
+    }
+
+    acc.resize(all_items);
+    thresh.resize(all_items);
+    app.resize(model_count);
+    for (int i = 0; i < model_count; i++) app[i].resize(all_items);
+
+    std::cerr << sub_dim << endl;
+#pragma omp parallel for
+    for (int i = 0; i < count_bound; i++) {
+        for (int j = 0; j < res[i].size(); j++) {
+            auto u = res[i][j];
+            unsigned tag = cnt_tag[i][j];
             unsigned id = get<0>(u);
             float node_dist = get<1>(u);
             float thresh_dist = get<2>(u);
-            float app_dist = naive_l2_dist_calc(Q.data + i * ivf.D, ivf.res_data + id * ivf.D, project_dim);
-            out.write((char*)&feature_dim,sizeof(unsigned));
-            out.write((char*)&node_dist,sizeof(float));
-            out.write((char*)&app_dist,sizeof(float));
-            out.write((char*)&thresh_dist,sizeof(float));
+            float app_dist = 0;
+            unsigned app_count = 0;
+            float *p = ivf.res_data + id * ivf.D;
+            float *q = Q.data + i * ivf.D;
+            for (unsigned k = 0; k < ivf.D; k += sub_dim) {
+                app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
+                app[app_count][tag] = app_dist;
+                app_count++;
+            }
+            acc[tag] = node_dist;
+            thresh[tag] = thresh_dist;
         }
     }
-    out.close();
-//    float *data_load;
-//    unsigned points_num, dim;
-//    load_float_data(dataset, data_load, points_num, dim);
-//    Index_PQ::Quantizer PQ(points_num, dim, data_load);
-//    PQ.load_product_codebook(codebook_path);
-//    PQ.encoder_origin_data();
-//    PQ.load_project_matrix(transformation_path);
-//    PQ.project_vector(Q.data, Q.n);
-//    double count_all = 0.0, base_all = 0.0;
-//    std::ofstream out("./logger/gist_logger_OPQ_120_ivf.fvecs");
-//    unsigned feature_dim = 4;
-//    for(int i = 0; i < Q.n; i++){
-//        PQ.calc_dist_map(Q.data + i * dim);
-//        for(auto u:res[i]){
-//            unsigned id = get<0>(u);
-//            float node_dist = get<1>(u);
-//            float thresh_dist = get<2>(u);
-//            float pq_dist = PQ.naive_product_map_dist(id);
-//            float node_to_cluster = PQ.node_cluster_dist_[id];
-//            out.write((char*)&feature_dim,sizeof(unsigned));
-//            out.write((char*)&node_dist,sizeof(float));
-//            out.write((char*)&pq_dist,sizeof(float));
-//            out.write((char*)&node_to_cluster,sizeof(float));
-//            out.write((char*)&thresh_dist,sizeof(float));
-//            if(thresh_dist < pq_dist - node_to_cluster) count_all += 1.0;
-//            base_all += 1.0;
-//        }
-//    }
-//    std::cout<<count_all<<" "<<base_all<<endl;
-//    std::cout<<count_all/base_all<<endl;
-//    out.close();
+
+    for (int i = 0; i < count_bound; i++) {
+        for (int j = 0; j < res[i].size(); j++) {
+            auto u = res[i][j];
+            unsigned tag = cnt_tag[i][j];
+            float node_dist = get<1>(u);
+            float thresh_dist = get<2>(u);
+            out.write((char *) &feature_dim, sizeof(unsigned));
+            out.write((char *) &node_dist, sizeof(float));
+            for (int k = 0; k < model_count; k++) {
+                out.write((char *) &app[k][tag], sizeof(unsigned));
+            }
+            out.write((char *) &thresh_dist, sizeof(float));
+        }
+    }
+
+
+    std::cerr << "save finished" << endl;
+    if (isFileExists_ifstream((linear_path))) {
+        Linear::Linear L(ivf.D);
+        L.recall = 0.999999;
+        L.load_linear_model(linear_path);
+        std::ofstream fout(linear_path);
+        fout << L.model_count << endl;
+        for (int i = 0; i < L.model_count; i++) {
+            L.binary_search_single_linear(acc.size(), app[i].data(), acc.data(), thresh.data(), i);
+            fout << L.W_[i] << " " << L.B_[i] << endl;
+        }
+    }
     return 0;
 }
