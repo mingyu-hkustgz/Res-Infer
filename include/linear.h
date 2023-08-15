@@ -36,14 +36,17 @@ namespace Linear {
             unsigned cur = origin_dim;
             if(tag_model==1){
                 if (target_linear_classifier_(res, thresh_dist, 0)) return -res * W_[0] + B_[0];
-                cur += origin_dim;
             }
-            for (; cur <= dim; cur += origin_dim) {
+            for (; cur <= fix_dim; cur += origin_dim) {
                 res += naive_l2_dist_calc(q, p, origin_dim);
                 p += origin_dim;
                 q += origin_dim;
                 if (target_linear_classifier_(res, thresh_dist, tag_model)) return -res * W_[tag_model] + B_[tag_model];
                 tag_model++;
+            }
+            if(res_dim){
+                res += naive_l2_dist_calc(q, p,res_dim);
+                if(res > thresh_dist) return -res;
             }
             return res;
         }
@@ -61,6 +64,8 @@ namespace Linear {
                 fin >> W_[i] >> B_[i];
             }
             origin_dim = dim / model_count;
+            res_dim = dim%origin_dim;
+            fix_dim = dim - res_dim;
         }
 
         void
@@ -85,9 +90,8 @@ namespace Linear {
                 if (test_recall < recall) {
                     r = mid - eps;
                     res = mid;
-                    std::cerr << l << " " << mid << " " << test_recall << endl;
                 } else {
-                    std::cerr << mid << " " << r << " " << test_recall << endl;
+                    std::cerr << mid << " <-gap-> " << r << " recall::" << test_recall << endl;
                     l = mid + eps;
                 }
             }
@@ -96,7 +100,7 @@ namespace Linear {
 
         double eps = 0.0001;
         double recall = 0;
-        unsigned model_count, origin_dim, dim;
+        unsigned model_count, origin_dim, dim, res_dim, fix_dim;
     };
 
 }

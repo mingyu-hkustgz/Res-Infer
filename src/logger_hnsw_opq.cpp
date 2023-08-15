@@ -145,6 +145,7 @@ int main(int argc, char *argv[]) {
     Index_PQ::Quantizer PQ(appr_alg->cur_element_count, Q.d);
     PQ.load_product_codebook(codebook_path);
     PQ.load_project_matrix(transformation_path);
+    count_bound = std::min(count_bound, (unsigned) Q.n);
     PQ.project_vector(Q.data, count_bound);
     appr_alg->PQ = &PQ;
     appr_alg->encoder_origin_data();
@@ -184,7 +185,7 @@ int main(int argc, char *argv[]) {
             unsigned id = get<0>(u);
             float node_dist = get<1>(u);
             float thresh_dist = get<2>(u);
-            float app_dist = appr_alg->PQ->naive_product_map_dist(id);
+            float app_dist = appr_alg->PQ->naive_product_map_dist(id) - appr_alg->PQ->node_cluster_dist_[id];
             unsigned app_count = 0;
             app[app_count][tag] = app_dist;
             acc[tag] = node_dist;

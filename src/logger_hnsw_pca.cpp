@@ -144,6 +144,7 @@ int main(int argc, char *argv[]) {
     std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
     Index_PCA::PCA PCA(appr_alg->cur_element_count, Q.d);
     PCA.load_project_matrix(transformation_path);
+    count_bound = std::min(count_bound, (unsigned) Q.n);
     PCA.project_vector(Q.data, count_bound);
     appr_alg->PCA = &PCA;
 
@@ -186,7 +187,8 @@ int main(int argc, char *argv[]) {
             auto *p = (float*) appr_alg->getDataByInternalId(id);
             float *q = Q.data + i * Q.d;
             for (unsigned k = 0; k < Q.d; k += sub_dim) {
-                app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
+                if(k+sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d %sub_dim);
+                else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
                 app[app_count][tag] = app_dist;
                 app_count++;
             }

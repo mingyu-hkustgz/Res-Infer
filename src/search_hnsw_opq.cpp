@@ -87,14 +87,10 @@ static void test_approx(float *massQ, size_t vecsize, size_t qsize, Hierarchical
 static void test_vs_recall(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
                            vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
     vector<size_t> efs;
-    efs.push_back(50);
-    efs.push_back(100);
-    efs.push_back(150);
-    efs.push_back(200);
-    efs.push_back(250);
-    efs.push_back(300);
-    efs.push_back(350);
-    efs.push_back(400);
+    efs.push_back(500);
+    efs.push_back(1000);
+    efs.push_back(1500);
+    efs.push_back(2000);
     for (size_t ef : efs) {
         appr_alg.setEf(ef);
         test_approx(massQ, vecsize, qsize, appr_alg, vecdim, answers, k, adaptive);
@@ -190,9 +186,9 @@ int main(int argc, char * argv[]) {
     Index_PQ::Quantizer PQ(appr_alg->cur_element_count, Q.d);
     PQ.load_product_codebook(codebook_path);
     PQ.load_project_matrix(transformation_path);
-    Linear::Linear L(Q.d);
-    L.load_linear_model(linear_path);
-    appr_alg->L = &L;
+//    Linear::Linear L(Q.d);
+//    L.load_linear_model(linear_path);
+//    appr_alg->L = &L;
     appr_alg->PQ = &PQ;
     appr_alg->encoder_origin_data();
 

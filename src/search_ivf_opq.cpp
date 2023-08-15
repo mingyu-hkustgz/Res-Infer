@@ -158,10 +158,10 @@ int main(int argc, char * argv[]) {
     ivf.PQ = &PQ;
     ivf.encoder_origin_data();
     StopW stopw = StopW();
+    std::cerr<<"rotate time:: "<<rotation_time<<std::endl;
     freopen(result_path,"a",stdout);
     PQ.project_vector(Q.data, Q.n);
     rotation_time = stopw.getElapsedTimeMicro() / Q.n;
-    std::cout<<"rotate time:: "<<rotation_time<<std::endl;
     test(Q, G, ivf, subk);
     return 0;
 }

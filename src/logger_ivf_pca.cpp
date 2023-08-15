@@ -25,7 +25,7 @@ unsigned count_bound = 1000;
 
 vector<vector<tuple<unsigned, float, float> > > test_logger(const Matrix<float> &Q, const IVF &ivf, int k) {
     vector<int> nprobes;
-    nprobes.push_back(100);
+    nprobes.push_back(200);
     vector<vector<tuple<unsigned, float, float> > > ivf_logger(count_bound);
     for (auto nprobe: nprobes) {
 #pragma omp parallel for
@@ -125,7 +125,8 @@ int main(int argc, char *argv[]) {
     ivf.load(index_path);
     Index_PCA::PCA PCA(ivf.N,ivf.D);
     PCA.load_project_matrix(transformation_path);
-    PCA.project_vector(Q.data, Q.n);
+    count_bound = std::min(count_bound, (unsigned) Q.n);
+    PCA.project_vector(Q.data, count_bound);
     ivf.PCA = &PCA;
     auto res = test_logger(Q, ivf, subk);
     std::vector<float> acc, thresh;
@@ -162,10 +163,11 @@ int main(int argc, char *argv[]) {
             float thresh_dist = get<2>(u);
             float app_dist = 0;
             unsigned app_count = 0;
-            float *p = ivf.res_data + id * ivf.D;
-            float *q = Q.data + i * ivf.D;
-            for (unsigned k = 0; k < ivf.D; k += sub_dim) {
-                app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
+            float *p = ivf.res_data + id * Q.d;
+            float *q = Q.data + i * Q.d;
+            for (unsigned k = 0; k < Q.d; k += sub_dim) {
+                if(k+sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d %sub_dim);
+                else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
                 app[app_count][tag] = app_dist;
                 app_count++;
             }

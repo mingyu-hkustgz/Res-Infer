@@ -31,7 +31,7 @@ if __name__ == "__main__":
         print(f"visual - {dataset}")
         plt.figure(figsize=(12, 8))
         for i in range(9):
-            result_path = f"./results/{dataset}_ad_hnsw_{i}.log"
+            result_path = f"./results/{dataset}/{dataset}_ad_hnsw_{i}.log"
             label = "null"
             if i == 0:
                 label = "hnsw-naive"
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         plt.show()
         plt.figure(figsize=(12, 8))
         for i in range(7):
-            result_path = f"./results/{dataset}_ad_ivf_{i}.log"
+            result_path = f"./results/{dataset}/{dataset}_ad_ivf_{i}.log"
             label = "null"
             if i == 0:
                 label = "hnsw-naive"

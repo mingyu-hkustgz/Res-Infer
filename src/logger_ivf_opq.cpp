@@ -25,7 +25,7 @@ unsigned count_bound = 1000;
 
 vector<vector<tuple<unsigned, float, float> > > test_logger(const Matrix<float> &Q, const IVF &ivf, int k) {
     vector<int> nprobes;
-    nprobes.push_back(100);
+    nprobes.push_back(200);
     vector<vector<tuple<unsigned, float, float> > > ivf_logger(count_bound);
     for (auto nprobe: nprobes) {
 #pragma omp parallel for
@@ -126,6 +126,7 @@ int main(int argc, char *argv[]) {
     Index_PQ::Quantizer PQ(ivf.N, ivf.D);
     PQ.load_product_codebook(codebook_path);
     PQ.load_project_matrix(transformation_path);
+    count_bound = std::min(count_bound, (unsigned) Q.n);
     PQ.project_vector(Q.data, count_bound);
     ivf.PQ = &PQ;
     ivf.encoder_origin_data();

@@ -231,8 +231,9 @@ void load_int_data(const char *filename, int *&data, unsigned &num,
     }
     in.close();
 }
-
-float naive_l2_dist_calc(const float *q, const float *p, const unsigned &dim) {
+__attribute__((always_inline))
+inline float
+naive_l2_dist_calc(const float *q, const float *p, const unsigned &dim) {
     float ans = 0.0;
     for (unsigned i = 0; i < dim; i++) {
         ans += (p[i] - q[i]) * (p[i] - q[i]);

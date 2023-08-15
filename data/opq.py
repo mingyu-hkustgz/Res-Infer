@@ -39,7 +39,7 @@ if __name__ == "__main__":
     K = (1 << nbits)
     print(f"OPQ transform - {dataset}")
     path = os.path.join(source, dataset)
-    learn_path = os.path.join(path, f'{dataset}_learn.fvecs')
+    learn_path = os.path.join(path, f'{dataset}_base.fvecs')
     data_path = os.path.join(path, f'{dataset}_base.fvecs')
     X_base = fvecs_read(data_path)
     X_learn = fvecs_read(learn_path)

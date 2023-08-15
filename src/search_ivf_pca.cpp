@@ -157,9 +157,8 @@ int main(int argc, char * argv[]) {
     ivf.PCA = &PCA;
     ivf.PCA->proj_dim = 960;
     ivf.L = &L;
+    std::cerr<<"rotate time:: "<<rotation_time<<std::endl;
     freopen(result_path,"a",stdout);
-
-    std::cout<<"rotate time:: "<<rotation_time<<std::endl;
     test(Q, G, ivf, subk);
     return 0;
 }
