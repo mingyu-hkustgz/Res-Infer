@@ -7,7 +7,7 @@ M=16
 pca_dim=32
 opq_dim=96
 
-for data in {gist,deep1M,_tiny5m,_word2vec,_msong,_glove2.2m}
+for data in sift
 do
 echo "Indexing - ${data}"
 
@@ -29,6 +29,9 @@ then
 elif [ $data == "deep1M" ]
 then
     opq_dim=64
+elif [ $data == "sift" ]
+then
+    opq_dim=32
 fi
 
 data_path=/home/BLD/mingyu/DATA/vector_data/${data}

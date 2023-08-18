@@ -4,7 +4,7 @@ opq_dim=32
 pca_dim=32
 efSearch=50
 cd ..
-for data in {gist,deep1M,_tiny5m,_word2vec,_msong,_glove2.2m}
+for data in sift
 do
 echo "Searching - ${data}"
 
@@ -32,6 +32,10 @@ elif [ $data == "deep1M" ]
 then
     opq_dim=64
     efSearch=100
+elif [ $data == "sift" ]
+then
+    opq_dim=32
+    efSearch=30
 fi
 
 
@@ -77,7 +81,7 @@ do
 res="${result_path}/${data}_ad_hnsw_${randomize}.log"
 linear="${temp_data}/linear_hnsw0_opq_${opq_dim}.log"
 
-./cmake-build-debug/src/search_hnsw_opq -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
+#./cmake-build-debug/src/search_hnsw_opq -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
 
 done
 
@@ -87,7 +91,7 @@ do
 res="${result_path}/${data}_ad_hnsw_${randomize}.log"
 linear="${temp_data}/linear_hnsw1_opq_${opq_dim}.log"
 
-./cmake-build-debug/src/search_hnsw_opq -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
+#./cmake-build-debug/src/search_hnsw_opq -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
 
 done
 
@@ -100,7 +104,7 @@ do
 linear="${temp_data}/linear_hnsw${method}_pca_${pca_dim}.log"
 res="${result_path}/${data}_ad_hnsw_${randomize}.log"
 
-./cmake-build-debug/src/search_hnsw_pca -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch}
+#./cmake-build-debug/src/search_hnsw_pca -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch}
 method="1"
 done
 

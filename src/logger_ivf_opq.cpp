@@ -156,8 +156,7 @@ int main(int argc, char *argv[]) {
     app.resize(all_items);
     cluster.resize(all_items);
     thresh.resize(all_items);
-    double base = 0.0,loss=0.0;
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < count_bound; i++) {
         float *q = Q.data + i * Q.d;
         ivf.PQ->calc_dist_map(q);
         for (int j = 0; j < res[i].size(); j++) {

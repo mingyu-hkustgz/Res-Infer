@@ -67,7 +67,7 @@ if __name__ == "__main__":
         x_boundary = np.linspace(X[:10000, 0].min(), X[:10000, 0].max(), 100)
         y_boundary = -(model.coef_[0][0] * x_boundary + model.intercept_) / model.coef_[0][1]
         if verbose:
-            plt.scatter(acc_dist[:10000], X[:10000, 1], c=y[:10000], alpha=0.2)
+            plt.scatter(X[:10000, 0], X[:10000, 1], c=y[:10000], alpha=0.2)
             plt.plot(x_boundary, y_boundary, "r--")
             plt.xlabel("approximate dist")
             plt.ylabel("threshold dist")

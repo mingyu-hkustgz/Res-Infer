@@ -26,6 +26,7 @@ int main(int argc, char **argv) {
     IVF ivf;
     ivf.load(argv[6]);
     ivf.PQ = &PQ;
+    ivf.L1_data = data_load;
     ivf.encoder_origin_data();
     std::cout << "IVF naive centroid distance" << std::endl;
 

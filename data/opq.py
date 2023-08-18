@@ -35,19 +35,15 @@ if __name__ == "__main__":
     dataset = args['dataset']
     nbits = int(args['bits'])
     M = int(args['M'])
-
-    K = (1 << nbits)
     print(f"OPQ transform - {dataset}")
     path = os.path.join(source, dataset)
-    learn_path = os.path.join(path, f'{dataset}_base.fvecs')
     data_path = os.path.join(path, f'{dataset}_base.fvecs')
     X_base = fvecs_read(data_path)
-    X_learn = fvecs_read(learn_path)
-    d = X_learn.shape[1]
+    d = X_base.shape[1]
     d2 = ((d + M - 1) // M) * M
     opq = faiss.OPQMatrix(d, M, d2)
     opq.verbose = True
-    opq.train(X_learn)
+    opq.train(X_base)
     Matrix_A = faiss.vector_float_to_array(opq.A)
     Matrix_A = Matrix_A.reshape(d2, d2)
     # save the transpose matrix
@@ -55,7 +51,7 @@ if __name__ == "__main__":
     X_base = opq.apply(X_base)
     pq = faiss.ProductQuantizer(d2, M, nbits)
     pq.verbose = True
-    pq.train(X_learn)
+    pq.train(X_base)
     centroids = faiss.vector_float_to_array(pq.centroids)
     centroids = centroids.reshape(pq.M, pq.ksub, pq.dsub)
     save_centroid(f'./DATA/{dataset}/{dataset}_codebook_{M}.centroid', centroids)

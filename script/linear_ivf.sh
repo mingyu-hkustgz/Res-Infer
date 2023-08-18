@@ -4,7 +4,7 @@ K=100
 pca_dim=32
 opq_dim=32
 efSearch=50
-for data in {gist,deep1M,_tiny5m,_word2vec,_msong,_glove2.2m}
+for data in sift
 do
 echo "Indexing - ${data}"
 
@@ -44,6 +44,12 @@ then
     efSearch=100
     opq_eps=0.99999
     pca_eps=0.999999
+elif [ $data == "sift" ]
+then
+    opq_dim=32
+    efSearch=50
+    opq_eps=0.99999
+    pca_eps=0.999999
 fi
 
 
@@ -54,7 +60,6 @@ result_path=./results
 
 index="${index_path}/${data}_ivf_opq_${opq_dim}.index"
 linear="${index_path}/linear_ivf_opq_${opq_dim}.log"
-query="${data_path}/${data}_query.fvecs"
 learn="${data_path}/${data}_learn.fvecs"
 gnd="${data_path}/${data}_groundtruth.ivecs"
 trans="${index_path}/${data}_opq_matrix_${opq_dim}.fvecs"
@@ -74,10 +79,10 @@ linear="${index_path}/linear_ivf_pca_${pca_dim}.log"
 trans="${index_path}/${data}_pca_matrix_${pca_dim}.fvecs"
 logger="./logger/${data}_logger_pca_${pca_dim}_ivf.fvecs"
 
-./cmake-build-debug/src/logger_ivf_pca -d 2 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
-
-python ./data/linear.py -d ${data} -m "pca" -p ${pca_dim} -i "ivf"
-
-./cmake-build-debug/src/logger_ivf_pca -d 2 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
+#./cmake-build-debug/src/logger_ivf_pca -d 2 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
+#
+#python ./data/linear.py -d ${data} -m "pca" -p ${pca_dim} -i "ivf"
+#
+#./cmake-build-debug/src/logger_ivf_pca -d 2 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
 
 done
