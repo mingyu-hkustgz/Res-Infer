@@ -24,7 +24,8 @@ const int MAXK = 100;
 
 long double rotation_time = 0;
 unsigned count_bound = 1000;
-
+unsigned efSearch = 0;
+double recall = 0.999999;
 vector<vector<tuple<unsigned, float, float> > > test_approx(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
             vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
     size_t correct = 0;
@@ -46,7 +47,7 @@ vector<vector<tuple<unsigned, float, float> > >
 test_vs_recall(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
                vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
     vector<size_t> efs;
-    efs.push_back(500);
+    efs.push_back(efSearch);
     vector<vector<tuple<unsigned, float, float> > > hnsw_logger(qsize);
     for (size_t ef: efs) {
         appr_alg.setEf(ef);
@@ -93,7 +94,7 @@ int main(int argc, char *argv[]) {
     int subk = 100;
 
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:o:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:o:s:", longopts, &ind);
         switch (iarg) {
             case 'd':
                 if (optarg)randomize = atoi(optarg);
@@ -102,7 +103,7 @@ int main(int argc, char *argv[]) {
                 if (optarg)subk = atoi(optarg);
                 break;
             case 'e':
-                if (optarg)adsampling::epsilon0 = atof(optarg);
+                if (optarg)recall = atof(optarg);
                 break;
             case 'p':
                 if (optarg)adsampling::delta_d = atoi(optarg);
@@ -134,6 +135,9 @@ int main(int argc, char *argv[]) {
             case 'o':
                 if (optarg)strcpy(logger_path, optarg);
                 break;
+            case 's':
+                if (optarg)efSearch=atoi(optarg);
+                break;
         }
     }
 
@@ -158,6 +162,7 @@ int main(int argc, char *argv[]) {
     std::vector<std::vector<unsigned> > cnt_tag;
     unsigned sub_dim = 32;
     unsigned feature_dim = 2, model_count = Q.d / sub_dim;
+    if(Q.d % sub_dim)  model_count++;
     feature_dim += model_count;
     std::cerr << "feature dim:: " << feature_dim << " models:: " << model_count << " sub dim:: " << sub_dim << endl;
     unsigned all_items = 0;
@@ -216,7 +221,7 @@ int main(int argc, char *argv[]) {
     std::cerr << "save finished" << endl;
     if (isFileExists_ifstream((linear_path))) {
         Linear::Linear L(Q.d);
-        L.recall = 0.999999;
+        L.recall = recall;
         L.load_linear_model(linear_path);
         std::ofstream fout(linear_path);
         fout << L.model_count << endl;

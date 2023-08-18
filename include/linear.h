@@ -12,8 +12,8 @@ namespace Linear {
         }
 
         __attribute__((always_inline))
-        inline bool linear_classifier_default_pq(float app_dist, float thresh_dist) {
-            return app_dist * W_[0] + B_[0] > thresh_dist;
+        inline bool linear_classifier_default_pq(float app_dist, float cluster_dist, float thresh_dist) {
+            return app_dist * W_[0] + cluster_dist * W_[1] + B_[0] > thresh_dist;
         }
 
         __attribute__((always_inline))
@@ -32,10 +32,12 @@ namespace Linear {
         }
 
         __attribute__((always_inline))
-        inline float multi_linear_classifier_(float *q, float *p, float thresh_dist, unsigned tag_model = 0, float res = 0) {
+        inline float
+        multi_linear_classifier_(float *q, float *p, float thresh_dist, unsigned tag_model = 0, float res = 0) {
             unsigned cur = origin_dim;
-            if(tag_model==1){
+            if (tag_model == 1) {
                 if (target_linear_classifier_(res, thresh_dist, 0)) return -res * W_[0] + B_[0];
+                cur += origin_dim;
             }
             for (; cur <= fix_dim; cur += origin_dim) {
                 res += naive_l2_dist_calc(q, p, origin_dim);
@@ -44,9 +46,9 @@ namespace Linear {
                 if (target_linear_classifier_(res, thresh_dist, tag_model)) return -res * W_[tag_model] + B_[tag_model];
                 tag_model++;
             }
-            if(res_dim){
-                res += naive_l2_dist_calc(q, p,res_dim);
-                if(res > thresh_dist) return -res;
+            if (res_dim) {
+                res += naive_l2_dist_calc(q, p, res_dim);
+                if (res > thresh_dist) return -res;
             }
             return res;
         }
@@ -57,15 +59,22 @@ namespace Linear {
             std::ifstream fin(filename);
             unsigned num;
             fin >> num;
-            W_.resize(num);
-            B_.resize(num);
-            model_count = num;
-            for (int i = 0; i < num; i++) {
-                fin >> W_[i] >> B_[i];
+            if (num != 1) {
+                W_.resize(num);
+                B_.resize(num);
+                model_count = num;
+                for (int i = 0; i < num; i++) {
+                    fin >> W_[i] >> B_[i];
+                }
+            } else {
+                model_count = num;
+                W_.resize(2);
+                B_.resize(1);
+                fin >> W_[0] >> W_[1] >> B_[0];
             }
-            origin_dim = dim / model_count;
-            res_dim = dim%origin_dim;
+            res_dim = dim % origin_dim;
             fix_dim = dim - res_dim;
+            std::cerr<<fix_dim<<" "<<res_dim<<" "<<num<<std::endl;
         }
 
         void
@@ -98,9 +107,39 @@ namespace Linear {
             B_[id] = (float) res;
         }
 
+        void binary_search_multi_linear(unsigned num, const float *app_dist, const float *acc_dist,
+                                        const float *cluster_dist, const float *thresh) {
+            double l = 0.0, r = 0.0, res;
+            for (int i = 0; i < num; i++) {
+                if (thresh[i] > r) r = thresh[i];
+            }
+            l = -r;
+            std::cerr << l << " " << r << endl;
+            while (r - l > eps) {
+                double mid = (l + r) / 2.0;
+                unsigned bad_count = 0;
+#pragma omp parallel for reduction(+:bad_count)
+                for (int i = 0; i < num; i++) {
+                    if (app_dist[i] * W_[0] + cluster_dist[i] * W_[1] + mid > thresh[i] && acc_dist[i] < thresh[i]) {
+                        bad_count++;
+                    }
+                }
+                double test_recall = (double) (num - bad_count) / (double) num;
+                if (test_recall < recall) {
+                    r = mid - eps;
+                    res = mid;
+                } else {
+                    std::cerr << mid << " <-gap-> " << r << " recall::" << test_recall << endl;
+                    l = mid + eps;
+                }
+            }
+            B_[0] = (float) res;
+        }
+
         double eps = 0.0001;
         double recall = 0;
-        unsigned model_count, origin_dim, dim, res_dim, fix_dim;
+        unsigned origin_dim = 32;
+        unsigned model_count, dim, res_dim, fix_dim;
     };
 
 }

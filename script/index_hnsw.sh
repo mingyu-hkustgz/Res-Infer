@@ -7,7 +7,7 @@ M=16
 pca_dim=32
 opq_dim=96
 
-for data in {_tiny5m,_msong,_word2vec,_glove2.2m}
+for data in {gist,deep1M,_tiny5m,_word2vec,_msong,_glove2.2m}
 do
 echo "Indexing - ${data}"
 

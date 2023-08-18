@@ -26,5 +26,4 @@ add_executable(logger_ivf_opq logger_ivf_opq.cpp)
 
 add_executable(test_pq test_pq.cpp)
 
-add_executable(test_pca test_pca.cpp)
 

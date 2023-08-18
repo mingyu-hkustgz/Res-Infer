@@ -21,20 +21,18 @@ const int MAXK = 100;
 
 long double rotation_time=0;
 int randomize;
+int efSearch = 0;
 
 void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int k){
     float sys_t, usr_t, usr_t_sum = 0, total_time=0, search_time=0;
     struct rusage run_start, run_end;
 
     vector<int> nprobes;
-    nprobes.push_back(25);
-    nprobes.push_back(50);
-    nprobes.push_back(75);
-    nprobes.push_back(100);
-    nprobes.push_back(125);
-    nprobes.push_back(150);
-    nprobes.push_back(175);
-    nprobes.push_back(200);
+    unsigned efBase = efSearch;
+    for (int i = 0; i < 8; i++) {
+        nprobes.push_back(efBase);
+        efBase += efSearch;
+    }
     for(auto nprobe:nprobes){
         total_time=0;
         adsampling::clear();
@@ -104,7 +102,7 @@ int main(int argc, char * argv[]) {
     int subk = 100;
 
     while(iarg != -1){
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:s:", longopts, &ind);
         switch (iarg){
             case 'd':
                 if(optarg)randomize = atoi(optarg);
@@ -141,6 +139,9 @@ int main(int argc, char * argv[]) {
             case 'l':
                 if (optarg)strcpy(linear_path, optarg);
                 break;
+            case 's':
+                if(optarg) efSearch = atoi(optarg);
+                break;
         }
     }
 
@@ -158,10 +159,10 @@ int main(int argc, char * argv[]) {
     ivf.PQ = &PQ;
     ivf.encoder_origin_data();
     StopW stopw = StopW();
-    std::cerr<<"rotate time:: "<<rotation_time<<std::endl;
-    freopen(result_path,"a",stdout);
     PQ.project_vector(Q.data, Q.n);
     rotation_time = stopw.getElapsedTimeMicro() / Q.n;
+    std::cerr<<"rotate time:: "<<rotation_time<<std::endl;
+    freopen(result_path,"a",stdout);
     test(Q, G, ivf, subk);
     return 0;
 }

@@ -24,6 +24,7 @@ if __name__ == "__main__":
         base_path = os.path.join(path, f'{dataset}_base.fvecs')
         query_path = os.path.join(path, f'{dataset}_query.fvecs')
         origin_data = fvecs_read(base_path)
+        np.random.shuffle(origin_data)
         query_data = fvecs_read(query_path)
         origin_num = origin_data.shape[0]
         learn_num = int(1e5)
@@ -31,10 +32,11 @@ if __name__ == "__main__":
         learn_data = origin_data[-learn_num:]
 
         gt = do_compute_gt(base_data, query_data, topk=100)
-
         save_path = os.path.join(source, f'_{dataset}')
+
         if not os.path.exists(save_path):
             os.makedirs(save_path)
+
         save_base_path = os.path.join(save_path, f'_{dataset}_base.fvecs')
         save_learn_path = os.path.join(save_path, f'_{dataset}_learn.fvecs')
         save_query_path = os.path.join(save_path, f'_{dataset}_query.fvecs')

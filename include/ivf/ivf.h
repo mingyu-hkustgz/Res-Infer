@@ -262,7 +262,7 @@ ResultHeap IVF::search_with_quantizer(float* query, size_t k, size_t nprobe, flo
         unsigned cluster_id = centroid_dist[i].second;
         for(int j=0;j<len[cluster_id];j++){
             size_t can = start[cluster_id] + j;
-            if(L->linear_classifier_default_pq(PQ->naive_product_map_dist(can) - PQ->node_cluster_dist_[can], thresh)) continue;
+            if(L->linear_classifier_default_pq(PQ->naive_product_map_dist(can), PQ->node_cluster_dist_[can], thresh)) continue;
             float tmp_dist = sqr_dist(query, L1_data + can * D, D);
             if(KNNs.size() < k) KNNs.emplace(tmp_dist,id[can]);
             else if(tmp_dist < KNNs.top().first){
@@ -364,7 +364,6 @@ ResultHeap IVF::search_with_pca(float* query, size_t k, size_t nprobe, float dis
     return KNNs;
 }
 
-//float tmp_dist = L->multi_linear_classifier_(query, res_data + can * D, thresh);
 ResultHeap IVF::search_with_quantizer_simd(float* query, size_t k, size_t nprobe, float distK) const{
     // the default value of distK is +inf
     Result* centroid_dist = new Result [C];
@@ -400,16 +399,10 @@ ResultHeap IVF::search_with_quantizer_simd(float* query, size_t k, size_t nprobe
         }
         while(ids.size()%4!=0) ids.push_back(0);
         auto res = PQ->sse4_dist_sacn(ids.data(), ids.size());
-//#else
-//        auto res = new float[len[cluster_id]];
-//        for(int j=0;j<len[cluster_id];j++){
-//            size_t can = start[cluster_id] + j;
-//            res[j] = PQ->naive_product_map_dist(id[can]);
-//        }
 #endif
         for(int j=0;j<len[cluster_id];j++){
             size_t can = start[cluster_id] + j;
-            if(L->linear_classifier_default_pq(res[j] - PQ->node_cluster_dist_[can], thresh)) continue;
+            if(L->linear_classifier_default_pq(res[j],PQ->node_cluster_dist_[can], thresh)) continue;
             float tmp_dist = sqr_dist(query, L1_data + can * D, D);
             if(KNNs.size() < k) KNNs.emplace(tmp_dist,id[can]);
             else if(tmp_dist < KNNs.top().first){

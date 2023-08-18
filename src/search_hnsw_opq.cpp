@@ -21,6 +21,7 @@ using namespace hnswlib;
 const int MAXK = 100;
 
 long double rotation_time=0;
+int efSearch = 0;
 
 static void get_gt(unsigned int *massQA, float *massQ, size_t vecsize, size_t qsize, L2Space &l2space,
                    size_t vecdim, vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, size_t subk, HierarchicalNSW<float> &appr_alg) {
@@ -87,10 +88,11 @@ static void test_approx(float *massQ, size_t vecsize, size_t qsize, Hierarchical
 static void test_vs_recall(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
                            vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
     vector<size_t> efs;
-    efs.push_back(500);
-    efs.push_back(1000);
-    efs.push_back(1500);
-    efs.push_back(2000);
+    unsigned efBase = efSearch;
+    for (int i = 0; i < 8; i++) {
+        efs.push_back(efBase);
+        efBase += efSearch;
+    }
     for (size_t ef : efs) {
         appr_alg.setEf(ef);
         test_approx(massQ, vecsize, qsize, appr_alg, vecdim, answers, k, adaptive);
@@ -133,7 +135,7 @@ int main(int argc, char * argv[]) {
     int randomize = 0;
     int subk=100;
     while(iarg != -1){
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:s:", longopts, &ind);
         switch (iarg){
             case 'd':
                 if(optarg)randomize = atoi(optarg);
@@ -172,6 +174,9 @@ int main(int argc, char * argv[]) {
             case 'l':
                 if (optarg)strcpy(linear_path, optarg);
                 break;
+            case 's':
+                if(optarg) efSearch = atoi(optarg);
+                break;
         }
     }
 
@@ -186,9 +191,9 @@ int main(int argc, char * argv[]) {
     Index_PQ::Quantizer PQ(appr_alg->cur_element_count, Q.d);
     PQ.load_product_codebook(codebook_path);
     PQ.load_project_matrix(transformation_path);
-//    Linear::Linear L(Q.d);
-//    L.load_linear_model(linear_path);
-//    appr_alg->L = &L;
+    Linear::Linear L(Q.d);
+    L.load_linear_model(linear_path);
+    appr_alg->L = &L;
     appr_alg->PQ = &PQ;
     appr_alg->encoder_origin_data();
 

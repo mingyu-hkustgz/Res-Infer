@@ -22,10 +22,12 @@ const int MAXK = 100;
 
 long double rotation_time = 0;
 unsigned count_bound = 1000;
+unsigned efSearch = 0;
+double recall = 0.999999;
 
 vector<vector<tuple<unsigned, float, float> > > test_logger(const Matrix<float> &Q, const IVF &ivf, int k) {
     vector<int> nprobes;
-    nprobes.push_back(200);
+    nprobes.push_back(efSearch);
     vector<vector<tuple<unsigned, float, float> > > ivf_logger(count_bound);
     for (auto nprobe: nprobes) {
 #pragma omp parallel for
@@ -77,7 +79,7 @@ int main(int argc, char *argv[]) {
     int subk = 0;
 
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:o:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:o:s:", longopts, &ind);
         switch (iarg) {
             case 'd':
                 if (optarg)randomize = atoi(optarg);
@@ -86,7 +88,7 @@ int main(int argc, char *argv[]) {
                 if (optarg)subk = atoi(optarg);
                 break;
             case 'e':
-                if (optarg)adsampling::epsilon0 = atof(optarg);
+                if (optarg)recall = atof(optarg);
                 break;
             case 'p':
                 if (optarg)adsampling::delta_d = atoi(optarg);
@@ -118,6 +120,9 @@ int main(int argc, char *argv[]) {
             case 'o':
                 if (optarg)strcpy(logger_path, optarg);
                 break;
+            case 's':
+                if (optarg)efSearch=atoi(optarg);
+                break;
         }
     }
     Matrix<float> Q(query_path);
@@ -134,7 +139,8 @@ int main(int argc, char *argv[]) {
     std::vector<unsigned> dim_tag;
     std::vector<std::vector<unsigned> > cnt_tag;
     unsigned sub_dim = 32;
-    unsigned feature_dim = 2, model_count = ivf.D / sub_dim;
+    unsigned feature_dim = 2, model_count = Q.d / sub_dim;
+    if(Q.d%sub_dim)  model_count++;
     feature_dim += model_count;
     std::cerr << "feature dim:: " << feature_dim << " models:: " << model_count << " sub dim:: " << sub_dim << endl;
     unsigned all_items = 0;
@@ -166,7 +172,7 @@ int main(int argc, char *argv[]) {
             float *p = ivf.res_data + id * Q.d;
             float *q = Q.data + i * Q.d;
             for (unsigned k = 0; k < Q.d; k += sub_dim) {
-                if(k+sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d %sub_dim);
+                if(k + sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d %sub_dim);
                 else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
                 app[app_count][tag] = app_dist;
                 app_count++;

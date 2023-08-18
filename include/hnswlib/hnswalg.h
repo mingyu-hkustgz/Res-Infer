@@ -790,8 +790,8 @@ namespace hnswlib {
 #ifdef COUNT_DIST_TIME
                             StopW stopw = StopW();
 #endif
-                            dist_t dist=PQ->naive_product_map_dist(candidate_id) - PQ->node_cluster_dist_[candidate_id];
-                            if(dist > lowerBound) continue;
+                            dist_t dist = PQ->naive_product_map_dist(candidate_id);
+                            if(L->linear_classifier_default_pq(dist, PQ->node_cluster_dist_[candidate_id],lowerBound)) continue;
                             else dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
 #ifdef COUNT_DIST_TIME
                             adsampling::distance_time += stopw.getElapsedTimeMicro();
@@ -901,11 +901,10 @@ namespace hnswlib {
                             if (!top_candidates.empty())
                                 lowerBoundcan = top_candidates.top().first;
                         }
-                            // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
                         else {
                             char *currObj1 = (getDataByInternalId(candidate_id));
-                            dist_t app_dist = PQ->naive_product_map_dist(candidate_id) ;
-                            if(app_dist - PQ->node_cluster_dist_[candidate_id]>lowerBound){
+                            dist_t app_dist = PQ->naive_product_map_dist(candidate_id);
+                            if(L->linear_classifier_default_pq(app_dist,PQ->node_cluster_dist_[candidate_id],lowerBound)){
                                 if(top_candidates.size() < ef || lowerBoundcan > app_dist){
                                     top_candidates.emplace(app_dist, candidate_id);
                                     candidate_set.emplace(-app_dist, candidate_id);
@@ -1038,7 +1037,7 @@ namespace hnswlib {
                         StopW stopw = StopW();
 #endif
                         dist_t dist;
-                        if(res[j] - PQ->node_cluster_dist_[candidate_id]> lowerBound) continue;
+                        if(L->linear_classifier_default_pq(res[j], PQ->node_cluster_dist_[candidate_id], lowerBound)) continue;
                         else dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
 #ifdef COUNT_DIST_TIME
                         adsampling::distance_time += stopw.getElapsedTimeMicro();
@@ -1159,7 +1158,7 @@ namespace hnswlib {
                         // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
                     else {
                         char *currObj1 = (getDataByInternalId(candidate_id));
-                        if(res[j] - PQ->node_cluster_dist_[candidate_id]> lowerBound) {
+                        if(L->linear_classifier_default_pq(res[j], PQ->node_cluster_dist_[candidate_id], lowerBound)) {
                             if(top_candidates.size() < ef || lowerBoundcan > res[j]){
                                 top_candidates.emplace(res[j], candidate_id);
                                 candidate_set.emplace(-res[j], candidate_id);
@@ -2238,8 +2237,8 @@ namespace hnswlib {
                             }
                         }
                         else if(3<=adaptive&&adaptive<=6){
-                            dist_t d = PQ->naive_product_map_dist(cand) - PQ->node_cluster_dist_[cand];
-                            if(d > curdist) continue;
+                            dist_t d = PQ->naive_product_map_dist(cand);
+                            if(L->linear_classifier_default_pq(d,PQ->node_cluster_dist_[cand], curdist)) continue;
                             else d = fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_);
                             if(d < curdist){
                                 curdist = d;
