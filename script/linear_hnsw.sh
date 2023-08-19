@@ -4,7 +4,7 @@ K=100
 pca_dim=32
 opq_dim=32
 efSearch=50
-for data in sift
+for data in _word2vec
 do
 echo "Indexing - ${data}"
 
@@ -23,15 +23,15 @@ then
 elif [ $data == "_word2vec" ]
 then
     opq_dim=75
-    efSearch=1000
-    opq_eps=0.99999
-    pca_eps=0.999999
+    efSearch=2000
+    opq_eps=0.999999
+    pca_eps=0.9999999
 elif [ $data == "_glove2.2m" ]
 then
     opq_dim=75
     efSearch=1000
-    opq_eps=0.99999
-    pca_eps=0.999999
+    opq_eps=0.999999
+    pca_eps=0.9999999
 elif [ $data == "gist" ]
 then
     opq_dim=120
@@ -48,8 +48,8 @@ elif [ $data == "sift" ]
 then
     opq_dim=32
     efSearch=100
-    opq_eps=0.99999
-    pca_eps=0.999999
+    opq_eps=0.9999
+    pca_eps=0.99999
 fi
 
 
@@ -87,20 +87,20 @@ trans="${pre_data}/${data}_pca_matrix_${pca_dim}.fvecs"
 logger="./logger/${data}_logger_pca_${pca_dim}_${index_type}.fvecs"
 index="/home/DATA/graph_data/hnsw/${data}_ef500_M16_pca.index"
 
-#./cmake-build-debug/src/logger_hnsw_pca -d 0 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
-#
-#python ./data/linear.py -d ${data} -m "pca" -p ${pca_dim} -i "${index_type}"
-#
-#./cmake-build-debug/src/logger_hnsw_pca -d 0 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
+./cmake-build-debug/src/logger_hnsw_pca -d 0 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
+
+python ./data/linear.py -d ${data} -m "pca" -p ${pca_dim} -i "${index_type}"
+
+./cmake-build-debug/src/logger_hnsw_pca -d 0 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
 
 index_type="hnsw1"
 linear="${pre_data}/linear_${index_type}_pca_${pca_dim}.log"
 logger="./logger/${data}_logger_pca_${pca_dim}_${index_type}.fvecs"
 
-#./cmake-build-debug/src/logger_hnsw_pca -d 1 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
-#
-#python ./data/linear.py -d ${data} -m "pca" -p ${pca_dim} -i ${index_type}
-#
-#./cmake-build-debug/src/logger_hnsw_pca -d 1 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
+./cmake-build-debug/src/logger_hnsw_pca -d 1 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
+
+python ./data/linear.py -d ${data} -m "pca" -p ${pca_dim} -i ${index_type}
+
+./cmake-build-debug/src/logger_hnsw_pca -d 1 -i ${index} -q ${learn} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_eps}
 
 done

@@ -6,9 +6,9 @@ import struct
 from tqdm import tqdm
 
 source = '/home/BLD/mingyu/DATA/vector_data'
-datasets = ['gist']
+datasets = ['gist', 'sift', 'deep1M', "_tiny5m", "_glove2.2m"]
 
-marker = ['o', 'd', 'x', 'D', '^', 'v', 'X', '<', '>']
+marker = ['o', 'o', 'o', 's', 's', 's', 's', 's', 's']
 col = ['r', 'b', 'y', 'g', 'c', 'm', 'olive', 'gold', 'violet']
 
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
         plt.grid(linestyle='--', linewidth=0.5)
         ax = plt.gca()
         ax.ticklabel_format(style='sci', scilimits=(-1, 2), axis='y')
-        plt.rc('font',family='Times New Roman')
+        plt.rc('font', family='Times New Roman')
         plt.savefig(f'./figure/{dataset}_hnsw_qps.png', dpi=600)
         plt.show()
         plt.figure(figsize=(12, 8))
@@ -92,6 +92,6 @@ if __name__ == "__main__":
         plt.grid(linestyle='--', linewidth=0.5)
         ax = plt.gca()
         ax.ticklabel_format(style='sci', scilimits=(-1, 2), axis='y')
-        plt.rc('font',family='Times New Roman')
+        plt.rc('font', family='Times New Roman')
         plt.savefig(f'./figure/{dataset}_ivf_qps.png', dpi=600)
         plt.show()

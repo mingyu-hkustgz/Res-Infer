@@ -5,7 +5,7 @@ C=4096
 pca_dim=32
 opq_dim=96
 
-for data in sift
+for data in {_msong,_word2vec,_glove2.2m}
 do
 echo "Indexing - ${data}"
 

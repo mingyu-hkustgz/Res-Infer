@@ -4,7 +4,7 @@ opq_dim=32
 pca_dim=32
 efSearch=50
 cd ..
-for data in sift
+for data in {sift,gist,deep1M,_glove2.2m,_word2vec,_tiny5m}
 do
 echo "Searching - ${data}"
 
@@ -35,7 +35,7 @@ then
 elif [ $data == "sift" ]
 then
     opq_dim=32
-    efSearch=30
+    efSearch=50
 fi
 
 
@@ -66,7 +66,7 @@ res="${result_path}/${data}_ad_hnsw_${randomize}.log"
 query="${data_path}/${data}_query.fvecs"
 gnd="${data_path}/${data}_groundtruth.ivecs"
 trans="${temp_data}/O.fvecs"
-./cmake-build-debug/src/search_hnsw -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -s ${efSearch}
+./cmake-build-debug/src/search_hnsw -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch}
 
 done
 
@@ -81,7 +81,7 @@ do
 res="${result_path}/${data}_ad_hnsw_${randomize}.log"
 linear="${temp_data}/linear_hnsw0_opq_${opq_dim}.log"
 
-#./cmake-build-debug/src/search_hnsw_opq -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
+./cmake-build-debug/src/search_hnsw_opq -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
 
 done
 
@@ -91,7 +91,7 @@ do
 res="${result_path}/${data}_ad_hnsw_${randomize}.log"
 linear="${temp_data}/linear_hnsw1_opq_${opq_dim}.log"
 
-#./cmake-build-debug/src/search_hnsw_opq -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
+./cmake-build-debug/src/search_hnsw_opq -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
 
 done
 
@@ -104,7 +104,7 @@ do
 linear="${temp_data}/linear_hnsw${method}_pca_${pca_dim}.log"
 res="${result_path}/${data}_ad_hnsw_${randomize}.log"
 
-#./cmake-build-debug/src/search_hnsw_pca -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch}
+./cmake-build-debug/src/search_hnsw_pca -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch}
 method="1"
 done
 
