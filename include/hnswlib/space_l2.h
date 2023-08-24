@@ -212,7 +212,7 @@ namespace hnswlib {
         size_t dim_;
     public:
         L2Space(size_t dim) {
-            fstdistfunc_ = L2Sqr;
+            fstdistfunc_ = L2SqrSIMD4Ext;
             // We block SIMD optimization.
             /*
     #if defined(USE_SSE) || defined(USE_AVX) || defined(USE_AVX512)

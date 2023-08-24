@@ -13,19 +13,19 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--dataset', help='dataset', default='deep1M')
     parser.add_argument('-m', '--method', help='approximate method', default='pca')
     parser.add_argument('-p', '--projdim', help='project dim', default='32')
-    parser.add_argument('-i', '--indextype', help='index type', default='hnsw1', )
+    parser.add_argument('-i', '--indextype', help='index type', default='hnsw1')
     parser.add_argument('-v', '--verbose', help='visual option', default=False)
-
+    parser.add_argument('-k', '--K', help='K nearest neighbor', default=1)
     args = vars(parser.parse_args())
     dataset = args['dataset']
     method_type = args['method']
     method_dim = args['projdim']
     index_type = args['indextype']
     verbose = args['verbose']
-
+    K = args['K']
     print(f"visual - {dataset}")
     filename = f'./logger/{dataset}_logger_{method_type}_{method_dim}_{index_type}.fvecs'
-    save_path = f'./DATA/{dataset}/linear_{index_type}_{method_type}_{method_dim}.log'
+    save_path = f'./DATA/{dataset}/linear_{index_type}_{method_type}_{method_dim}_{K}.log'
     original_data = fvecs_read(filename)
     acc_dist = original_data[:, 0]
     cluster_dist = original_data[:, 0]
@@ -100,11 +100,11 @@ if __name__ == "__main__":
     if method_type == "opq":
         f = open(save_path, 'w')
         print(1, file=f)
-        print(str(W_[0]) + " " + str(W_[1]) + " " + str(B_[0]), file=f)
+        print("%.6f %.6f %.6f" % (W_[0], W_[1], B_[0]), file=f)
         f.close()
     else:
         f = open(save_path, 'w')
         print(len(W_), file=f)
         for i in range(len(W_)):
-            print(str(W_[i]) + " " + str(B_[i]), file=f)
+            print("%.6f %.6f" % (W_[i], B_[i]), file=f)
         f.close()

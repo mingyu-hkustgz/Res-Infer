@@ -1,4 +1,5 @@
 #pragma once
+
 #include <chrono>
 #include <queue>
 #include <unordered_set>
@@ -24,12 +25,15 @@
 #include <cmath>
 #include <queue>
 #include <Eigen/Dense>
+
 #ifndef WIN32
+
 #include<sys/resource.h>
+
 #endif
 
 typedef std::pair<float, size_t> Result;
-typedef std::priority_queue<Result> ResultHeap; 
+typedef std::priority_queue<Result> ResultHeap;
 
 class StopW {
     std::chrono::high_resolution_clock::time_point time_begin;
@@ -50,15 +54,14 @@ public:
 };
 
 #ifndef WIN32
-void GetCurTime( rusage* curTime)
-{
-	int ret = getrusage( RUSAGE_SELF, curTime);
-	if( ret != 0)
-	{
-		fprintf( stderr, "The running time info couldn't be collected successfully.\n");
-		//FreeData( 2);
-		exit( 0);
-	}
+
+void GetCurTime(rusage *curTime) {
+    int ret = getrusage(RUSAGE_SELF, curTime);
+    if (ret != 0) {
+        fprintf(stderr, "The running time info couldn't be collected successfully.\n");
+        //FreeData( 2);
+        exit(0);
+    }
 }
 
 /*
@@ -69,12 +72,11 @@ void GetCurTime( rusage* curTime)
 * 
 * @Return void.
 */
-void GetTime( struct rusage* timeStart, struct rusage* timeEnd, float* userTime, float* sysTime)
-{
-	(*userTime) = ((float)(timeEnd->ru_utime.tv_sec - timeStart->ru_utime.tv_sec)) + 
-		((float)(timeEnd->ru_utime.tv_usec - timeStart->ru_utime.tv_usec)) * 1e-6;
-	(*sysTime) = ((float)(timeEnd->ru_stime.tv_sec - timeStart->ru_stime.tv_sec)) +
-		((float)(timeEnd->ru_stime.tv_usec - timeStart->ru_stime.tv_usec)) * 1e-6;
+void GetTime(struct rusage *timeStart, struct rusage *timeEnd, float *userTime, float *sysTime) {
+    (*userTime) = ((float) (timeEnd->ru_utime.tv_sec - timeStart->ru_utime.tv_sec)) +
+                  ((float) (timeEnd->ru_utime.tv_usec - timeStart->ru_utime.tv_usec)) * 1e-6;
+    (*sysTime) = ((float) (timeEnd->ru_stime.tv_sec - timeStart->ru_stime.tv_sec)) +
+                 ((float) (timeEnd->ru_stime.tv_usec - timeStart->ru_stime.tv_usec)) * 1e-6;
 }
 
 #endif
@@ -231,14 +233,49 @@ void load_int_data(const char *filename, int *&data, unsigned &num,
     }
     in.close();
 }
+
 __attribute__((always_inline))
-inline float
-naive_l2_dist_calc(const float *q, const float *p, const unsigned &dim) {
-    float ans = 0.0;
-    for (unsigned i = 0; i < dim; i++) {
-        ans += (p[i] - q[i]) * (p[i] - q[i]);
+inline float naive_l2_dist_calc(const float *pVect1, const float *pVect2, const unsigned qty) {
+    float __attribute__((aligned(32))) TmpRes[8];
+    size_t qty4 = qty >> 2;
+
+    const float *pEnd1 = pVect1 + (qty4 << 2);
+
+    __m128 diff, v1, v2;
+    __m128 sum = _mm_set1_ps(0);
+
+    while (pVect1 < pEnd1) {
+        v1 = _mm_loadu_ps(pVect1);
+        pVect1 += 4;
+        v2 = _mm_loadu_ps(pVect2);
+        pVect2 += 4;
+        diff = _mm_sub_ps(v1, v2);
+        sum = _mm_add_ps(sum, _mm_mul_ps(diff, diff));
     }
-    return ans;
+    _mm_store_ps(TmpRes, sum);
+    return TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3];
+}
+
+__attribute__((always_inline))
+inline float sse_l2_dist_calc(const float *pVect1, const float *pVect2, const unsigned qty) {
+    float __attribute__((aligned(32))) TmpRes[8];
+    size_t qty4 = qty >> 2;
+
+    const float *pEnd1 = pVect1 + (qty4 << 2);
+
+    __m128 diff, v1, v2;
+    __m128 sum = _mm_set1_ps(0);
+
+    while (pVect1 < pEnd1) {
+        v1 = _mm_loadu_ps(pVect1);
+        pVect1 += 4;
+        v2 = _mm_loadu_ps(pVect2);
+        pVect2 += 4;
+        diff = _mm_sub_ps(v1, v2);
+        sum = _mm_add_ps(sum, _mm_mul_ps(diff, diff));
+    }
+    _mm_store_ps(TmpRes, sum);
+    return TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3];
 }
 
 bool isFileExists_ifstream(const char *name) {

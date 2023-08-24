@@ -55,16 +55,16 @@ if __name__ == "__main__":
             recall, Qps = load_result_data(result_path)
             plt.plot(recall, Qps, marker=marker[i], c=col[i], label=label, alpha=0.5, linestyle="--")
 
-        plt.xlabel("Recall@100")
-        plt.ylabel("Qps")
-        plt.legend(loc="upper right")
-        plt.grid(linestyle='--', linewidth=0.5)
-        ax = plt.gca()
-        ax.ticklabel_format(style='sci', scilimits=(-1, 2), axis='y')
-        plt.rc('font', family='Times New Roman')
-        plt.savefig(f'./figure/{dataset}_hnsw_qps.png', dpi=600)
-        plt.show()
-        plt.figure(figsize=(12, 8))
+        # plt.xlabel("Recall@100")
+        # plt.ylabel("Qps")
+        # plt.legend(loc="upper right")
+        # plt.grid(linestyle='--', linewidth=0.5)
+        # ax = plt.gca()
+        # ax.ticklabel_format(style='sci', scilimits=(-1, 2), axis='y')
+        # plt.rc('font', family='Times New Roman')
+        # plt.savefig(f'./figure/{dataset}_hnsw_qps.png', dpi=600)
+        # plt.show()
+        # plt.figure(figsize=(12, 8))
         for i in range(7):
             result_path = f"./results/{dataset}/{dataset}_ad_ivf_{i}.log"
             label = "null"
@@ -93,5 +93,5 @@ if __name__ == "__main__":
         ax = plt.gca()
         ax.ticklabel_format(style='sci', scilimits=(-1, 2), axis='y')
         plt.rc('font', family='Times New Roman')
-        plt.savefig(f'./figure/{dataset}_ivf_qps.png', dpi=600)
+        plt.savefig(f'./figure/{dataset}_all_qps.png', dpi=600)
         plt.show()

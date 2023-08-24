@@ -13,7 +13,8 @@ namespace Linear {
 
         __attribute__((always_inline))
         inline bool linear_classifier_default_pq(float app_dist, float cluster_dist, float thresh_dist) {
-            return app_dist * W_[0] + cluster_dist * W_[1] + B_[0] > thresh_dist;
+            if(!model_count) return  app_dist - cluster_dist > thresh_dist;
+            else return app_dist * W_[0] + cluster_dist * W_[1] + B_[0] > thresh_dist;
         }
 
         __attribute__((always_inline))
@@ -56,6 +57,7 @@ namespace Linear {
         std::vector<float> W_, B_;
 
         void load_linear_model(const char *filename) {
+            if(!isFileExists_ifstream(filename)) return;
             std::ifstream fin(filename);
             unsigned num;
             fin >> num;
@@ -75,6 +77,7 @@ namespace Linear {
             res_dim = dim % origin_dim;
             fix_dim = dim - res_dim;
             std::cerr<<fix_dim<<" "<<res_dim<<" "<<num<<std::endl;
+            fin.close();
         }
 
         void
@@ -82,7 +85,7 @@ namespace Linear {
                                     unsigned id) {
             double l = 0.0, r = 0.0, res;
             for (int i = 0; i < num; i++) {
-                if (thresh[i] > r) r = thresh[i];
+                if (thresh[i]*W_[id] > r) r = thresh[i]*W_[id]*1.01;
             }
             l = -r;
             std::cerr << l << " " << r << endl;
@@ -91,16 +94,17 @@ namespace Linear {
                 unsigned bad_count = 0;
 #pragma omp parallel for reduction(+:bad_count)
                 for (int i = 0; i < num; i++) {
-                    if (app_dist[i] * W_[id] + mid > thresh[i] && acc_dist[i] < thresh[i]) {
+                    if (app_dist[i] * W_[id] + mid > thresh[i] &&(double) acc_dist[i] < (double) thresh[i] + 1e-6) {
                         bad_count++;
                     }
                 }
-                double test_recall = (double) (num - bad_count) / (double) num;
+                bad_count = std::min(bad_count, count_base);
+                double test_recall = (double) (count_base - bad_count) / (double) count_base;
                 if (test_recall < recall) {
                     r = mid - eps;
-                    res = mid;
                 } else {
-                    std::cerr << mid << " <-gap-> " << r << " recall::" << test_recall << endl;
+                    std::cerr << mid << " <-gap-> " << r << " recall::" << test_recall<<" bad-> "<<bad_count<< endl;
+                    res = mid;
                     l = mid + eps;
                 }
             }
@@ -114,22 +118,22 @@ namespace Linear {
                 if (thresh[i] > r) r = thresh[i];
             }
             l = -r;
-            std::cerr << l << " " << r << endl;
+            std::cerr << l << " " << r <<" "<<W_[0]<<" "<<W_[1]<<endl;
             while (r - l > eps) {
                 double mid = (l + r) / 2.0;
                 unsigned bad_count = 0;
 #pragma omp parallel for reduction(+:bad_count)
                 for (int i = 0; i < num; i++) {
-                    if (app_dist[i] * W_[0] + cluster_dist[i] * W_[1] + mid > thresh[i] && acc_dist[i] < thresh[i]) {
+                    if (app_dist[i] * W_[0] + cluster_dist[i] * W_[1] + mid > thresh[i] && (double) acc_dist[i] < (double) thresh[i] + 1e-6) {
                         bad_count++;
                     }
                 }
-                double test_recall = (double) (num - bad_count) / (double) num;
+                double test_recall = (double) (count_base - bad_count) / (double) count_base;
                 if (test_recall < recall) {
                     r = mid - eps;
-                    res = mid;
                 } else {
-                    std::cerr << mid << " <-gap-> " << r << " recall::" << test_recall << endl;
+                    std::cerr << mid << " <-gap-> " << r << " recall::" << test_recall<<" bad-> "<<bad_count<< endl;
+                    res = mid;
                     l = mid + eps;
                 }
             }
@@ -139,7 +143,8 @@ namespace Linear {
         double eps = 0.0001;
         double recall = 0;
         unsigned origin_dim = 32;
-        unsigned model_count, dim, res_dim, fix_dim;
+        unsigned count_base;
+        unsigned model_count = 0 , dim, res_dim, fix_dim;
     };
 
 }

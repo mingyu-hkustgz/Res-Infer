@@ -11,7 +11,6 @@ Note that in the whole algorithm we do not calculate the square root of the dist
 #include <queue>
 #include <vector>
 #include <iostream>
-
 using namespace std;
 #ifndef AD_SAMPLING
 namespace adsampling{
@@ -60,12 +59,15 @@ float dist_comp(const float& dis, const void *data, const void *query,
         // It continues to sample additional delta_d dimensions. 
         int check = std::min(delta_d, D-i);
         i += check;
-        for(int j = 1;j<=check;j++){
-            float t = *d - *q;
-            d ++;
-            q ++;
-            res += t * t;  
-        }
+        res += sse_l2_dist_calc(d, q, check);
+        d+=check;
+        q+=check;
+//        for(int j = 1;j<=check;j++){
+//            float t = *d - *q;
+//            d ++;
+//            q ++;
+//            res += t * t;
+//        }
         // Hypothesis tesing
         if(res >= dis * ratio(D, i)){
 #ifdef COUNT_DIMENSION            
@@ -86,14 +88,32 @@ float dist_comp(const float& dis, const void *data, const void *query,
 };
 
 float sqr_dist(float* a, float* b, int D){
-    float ret = 0;
-    for(int i=0;i!=D;i++){
-        float tmp = (*a - *b);
-        ret += tmp * tmp;
-        a++;
-        b++;
-    }    
-    return ret;
+//    float ret = 0;
+//    for(int i=0;i!=D;i++){
+//        float tmp = (*a - *b);
+//        ret += tmp * tmp;
+//        a++;
+//        b++;
+//    }
+//    return ret;
+    float __attribute__((aligned(32))) TmpRes[8];
+    size_t qty4 = D >> 2;
+
+    const float *pEnd1 = a + (qty4 << 2);
+
+    __m128 diff, v1, v2;
+    __m128 sum = _mm_set1_ps(0);
+
+    while (a < pEnd1) {
+        v1 = _mm_loadu_ps(a);
+        a += 4;
+        v2 = _mm_loadu_ps(b);
+        b += 4;
+        diff = _mm_sub_ps(v1, v2);
+        sum = _mm_add_ps(sum, _mm_mul_ps(diff, diff));
+    }
+    _mm_store_ps(TmpRes, sum);
+    return TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3];
 }
 #define AD_SAMPLING
 #endif //AD_SAMPLING

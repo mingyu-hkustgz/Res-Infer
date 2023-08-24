@@ -25,8 +25,10 @@ const int MAXK = 100;
 long double rotation_time = 0;
 unsigned count_bound = 1000;
 unsigned efSearch = 0;
-double recall = 0.999999;
-vector<vector<tuple<unsigned, float, float> > > test_approx(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
+double recall = 0.9999;
+
+vector<vector<tuple<unsigned, float, float> > >
+test_approx(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
             vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
     size_t correct = 0;
     size_t total = 0;
@@ -136,13 +138,14 @@ int main(int argc, char *argv[]) {
                 if (optarg)strcpy(logger_path, optarg);
                 break;
             case 's':
-                if (optarg)efSearch=atoi(optarg);
+                if (optarg)efSearch = atoi(optarg);
                 break;
         }
     }
 
-
     Matrix<float> Q(query_path);
+    Matrix<unsigned> G(groundtruth_path);
+
     L2Space l2space(Q.d);
     HierarchicalNSW<float> *appr_alg = new HierarchicalNSW<float>(&l2space, index_path, false);
     std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
@@ -158,62 +161,92 @@ int main(int argc, char *argv[]) {
     res = test_vs_recall(Q.data, appr_alg->max_elements_, Q.n, *appr_alg, Q.d, answers, subk, randomize);
     std::vector<float> acc, thresh;
     std::vector<std::vector<float> > app;
-    std::vector<unsigned> dim_tag;
-    std::vector<std::vector<unsigned> > cnt_tag;
+    std::unordered_map<unsigned, bool> KNNmap;
+    std::vector<unsigned> id_to_L1;
+
     unsigned sub_dim = 32;
     unsigned feature_dim = 2, model_count = Q.d / sub_dim;
-    if(Q.d % sub_dim)  model_count++;
+    if (Q.d % sub_dim) model_count++;
     feature_dim += model_count;
     std::cerr << "feature dim:: " << feature_dim << " models:: " << model_count << " sub dim:: " << sub_dim << endl;
-    unsigned all_items = 0;
-    cnt_tag.resize(count_bound);
-    for (int i = 0; i < count_bound; i++) {
-        cnt_tag[i].resize(res[i].size());
-        for (int j = 0; j < res[i].size(); j++) {
-            cnt_tag[i][j] = all_items;
-            all_items++;
-        }
-    }
-    acc.resize(all_items);
-    thresh.resize(all_items);
+
+    std::cerr << "target recall:: " << recall << endl;
+
     app.resize(model_count);
-    for (int i = 0; i < model_count; i++) app[i].resize(all_items);
-    std::cerr << sub_dim << endl;
-#pragma omp parallel for
-    for (int i = 0; i < count_bound; i++) {
-        for (int j = 0; j < res[i].size(); j++) {
-            auto u = res[i][j];
-            unsigned tag = cnt_tag[i][j];
-            unsigned id = get<0>(u);
-            float node_dist = get<1>(u);
-            float thresh_dist = get<2>(u);
+    id_to_L1.resize(appr_alg->cur_element_count);
+    for (int i = 0; i < id_to_L1.size(); i++) {
+        id_to_L1[appr_alg->getExternalLabel(i)] = i;
+    }
+    for (int i = 0; i < std::min((unsigned long) count_bound * 100 / subk, G.n); i++) {
+        float *q = Q.data + i * Q.d;
+        unsigned int *gt = G.data + i * G.d;
+        float thresh_dist = naive_l2_dist_calc(q, (float *) appr_alg->getDataByInternalId(id_to_L1[gt[subk - 1]]), Q.d);
+        for (int j = 0; j < subk; j++) {
+            unsigned L1_id = id_to_L1[gt[j]];
+            float acc_dist = naive_l2_dist_calc(q, (float *) appr_alg->getDataByInternalId(L1_id), Q.d);
             float app_dist = 0;
             unsigned app_count = 0;
-            auto *p = (float*) appr_alg->getDataByInternalId(id);
-            float *q = Q.data + i * Q.d;
+            auto *p = (float *) appr_alg->getDataByInternalId(L1_id);
             for (unsigned k = 0; k < Q.d; k += sub_dim) {
-                if(k+sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d %sub_dim);
+                if (k + sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d % sub_dim);
                 else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
-                app[app_count][tag] = app_dist;
+                app[app_count].push_back(app_dist);
                 app_count++;
             }
-            acc[tag] = node_dist;
-            thresh[tag] = thresh_dist;
+            acc.push_back(acc_dist);
+            thresh.push_back(thresh_dist);
+            KNNmap[L1_id] = true;
         }
     }
-    std::ofstream out(logger_path, std::ios::binary);
+    std::cerr << sub_dim << endl;
+
     for (int i = 0; i < count_bound; i++) {
-        for (int j = 0; j < res[i].size(); j++) {
-            auto u = res[i][j];
-            unsigned tag = cnt_tag[i][j];
+        float *q = Q.data + i * Q.d;
+        unsigned int *gt = G.data + i * G.d;
+        float thresh_dist = naive_l2_dist_calc(q, (float *) appr_alg->getDataByInternalId(id_to_L1[gt[subk - 1]]), Q.d);
+        for (auto u: res[i]) {
+            unsigned L1_id = get<0>(u);
+            if (KNNmap[L1_id]) continue;
             float node_dist = get<1>(u);
-            float thresh_dist = get<2>(u);
-            out.write((char *) &feature_dim, sizeof(unsigned));
-            out.write((char *) &node_dist, sizeof(float));
-            for (int k = 0; k < model_count; k++) {
-                out.write((char *) &app[k][tag], sizeof(unsigned));
+            float app_dist = 0;
+            unsigned app_count = 0;
+            auto *p = (float *) appr_alg->getDataByInternalId(L1_id);
+            for (unsigned k = 0; k < Q.d; k += sub_dim) {
+                if (k + sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d % sub_dim);
+                else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
+                app[app_count].push_back(app_dist);
+                app_count++;
             }
-            out.write((char *) &thresh_dist, sizeof(float));
+            acc.push_back(node_dist);
+            thresh.push_back(thresh_dist);
+        }
+    }
+
+    std::ofstream out(logger_path, std::ios::binary);
+    int knn_count = 0;
+    for (int tag = 0; tag < acc.size(); tag++) {
+        if ((double) acc[tag] < (double) thresh[tag] + 1e-8) {
+            out.write((char *) &feature_dim, sizeof(unsigned));
+            out.write((char *) &acc[tag], sizeof(float));
+            for (int j = 0; j < model_count; j++) {
+                out.write((char *) &app[j][tag], sizeof(float));
+            }
+            out.write((char *) &thresh[tag], sizeof(float));
+            knn_count++;
+        }
+    }
+    std::cerr << knn_count << endl;
+    static std::default_random_engine Engine;
+    static std::uniform_int_distribution<unsigned> rand(0, acc.size());
+    for (int tag = 0; tag < std::min((unsigned long) 1000000, acc.size()); tag++) {
+        unsigned rand_index = rand(Engine);
+        if (acc[rand_index] > thresh[rand_index]) {
+            out.write((char *) &feature_dim, sizeof(unsigned));
+            out.write((char *) &acc[rand_index], sizeof(float));
+            for (int j = 0; j < model_count; j++) {
+                out.write((char *) &app[j][rand_index], sizeof(float));
+            }
+            out.write((char *) &thresh[rand_index], sizeof(float));
         }
     }
     out.close();
@@ -221,11 +254,15 @@ int main(int argc, char *argv[]) {
     std::cerr << "save finished" << endl;
     if (isFileExists_ifstream((linear_path))) {
         Linear::Linear L(Q.d);
+        L.count_base = count_bound * subk;
         L.recall = recall;
         L.load_linear_model(linear_path);
         std::ofstream fout(linear_path);
+        fout.setf(ios::fixed, ios::floatfield);
+        fout.precision(6);
         fout << L.model_count << endl;
         for (int i = 0; i < L.model_count; i++) {
+            if (i == L.model_count - 1) L.recall = 1;
             L.binary_search_single_linear(acc.size(), app[i].data(), acc.data(), thresh.data(), i);
             fout << L.W_[i] << " " << L.B_[i] << endl;
         }

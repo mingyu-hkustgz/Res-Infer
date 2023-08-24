@@ -17,7 +17,7 @@
 using namespace std;
 
 const int MAXK = 100;
-
+int randomize = 0;
 long double rotation_time=0;
 int efSearch = 0;
 
@@ -37,8 +37,16 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
         int correct = 0;
 
         for(int i=0;i<Q.n;i++){
+            ResultHeap KNNs;
             GetCurTime( &run_start);
-            ResultHeap KNNs = ivf.search(Q.data + i * Q.d, k, nprobe);
+            if(randomize<=2)
+                KNNs = ivf.search(Q.data + i * Q.d, k, nprobe);
+            else if(randomize==3)
+                KNNs = ivf.search_with_quantizer(Q.data + i * Q.d, k, nprobe);
+            else if(randomize==4)
+                KNNs = ivf.search_with_quantizer_simd(Q.data + i * Q.d, k, nprobe);
+            else
+                KNNs = ivf.search_with_pca(Q.data + i * Q.d, k, nprobe);
             GetCurTime( &run_end);
             GetTime(&run_start, &run_end, &usr_t, &sys_t);
             total_time += usr_t * 1e6;
@@ -55,6 +63,7 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
 
         // (Search Parameter, Recall, Average Time/Query(us), Total Dimensionality)
         cout << nprobe << " " << recall * 100.00 << " " << time_us_per_query << " " << adsampling::tot_dimension << endl;
+        if(recall * 100.00 > 99.0) break;
     }
 }
 
@@ -89,11 +98,11 @@ int main(int argc, char * argv[]) {
     char result_path[256] = "";
     char dataset[256] = "";
     char transformation_path[256] = "";
-
-    int randomize = 0;
+    char codebook_path[256] = "";
+    char linear_path[256] = "";
     int subk = 0;
     while(iarg != -1){
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:s:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p::b:l:s:", longopts, &ind);
         switch (iarg){
             case 'd':
                 if(optarg)randomize = atoi(optarg);
@@ -125,6 +134,12 @@ int main(int argc, char * argv[]) {
             case 'n':
                 if(optarg)strcpy(dataset, optarg);
                 break;
+            case 'b':
+                if (optarg)strcpy(codebook_path, optarg);
+                break;
+            case 'l':
+                if (optarg)strcpy(linear_path, optarg);
+                break;
             case 's':
                 if(optarg) efSearch = atoi(optarg);
                 break;
@@ -133,17 +148,40 @@ int main(int argc, char * argv[]) {
     
     Matrix<float> Q(query_path);
     Matrix<unsigned> G(groundtruth_path);
-    Matrix<float> P(transformation_path);
-
-    freopen(result_path,"a",stdout);
-    if(randomize){
+    IVF ivf;
+    ivf.load(index_path);
+    if(1<=randomize&&randomize<=2){
+        Matrix<float> P(transformation_path);
         StopW stopw = StopW();
         Q = mul(Q, P);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         adsampling::D = Q.d;
+    }else if(3<=randomize&&randomize<=4){
+        auto PQ = new Index_PQ::Quantizer(ivf.N,Q.d);
+        PQ->load_product_codebook(codebook_path);
+        PQ->load_project_matrix(transformation_path);
+        auto L = new Linear::Linear(Q.d);
+        L->load_linear_model(linear_path);
+        ivf.L = L;
+        ivf.PQ = PQ;
+        ivf.encoder_origin_data();
+        StopW stopw = StopW();
+        PQ->project_vector(Q.data, Q.n);
+        rotation_time = stopw.getElapsedTimeMicro() / Q.n;
+        std::cerr<<"rotate time:: "<<rotation_time<<std::endl;
+    }else if(5<=randomize&&randomize<=6){
+        auto PCA = new Index_PCA::PCA(ivf.N,Q.d);
+        PCA->load_project_matrix(transformation_path);
+        StopW stopw = StopW();
+        PCA->project_vector(Q.data, Q.n);
+        rotation_time = stopw.getElapsedTimeMicro() / Q.n;
+        auto L = new Linear::Linear(Q.d);
+        L->load_linear_model(linear_path);
+        ivf.PCA = PCA;
+        ivf.L = L;
+        std::cerr<<"rotate time:: "<<rotation_time<<std::endl;
     }
-    IVF ivf;
-    ivf.load(index_path);
+    freopen(result_path,"a",stdout);
     test(Q, G, ivf, subk);
     return 0;
 }

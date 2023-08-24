@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.23)
 project(Learn-to-Prune)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 11)
 
 include_directories(include)
 include_directories(include/hnswlib)
@@ -18,5 +18,5 @@ else()
 endif()
 
 
-add_definitions (-std=c++14 -O3 -Wall -DINFO)
+add_definitions(-std=c++11 -O3)
 add_subdirectory(src)
