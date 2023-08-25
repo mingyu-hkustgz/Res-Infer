@@ -26,9 +26,11 @@ long double rotation_time = 0;
 unsigned count_bound = 1000;
 unsigned efSearch = 0;
 double recall = 0.999;
+unsigned elements_bound = 5000000;
 
-vector<vector<tuple<unsigned, float, float> > > test_approx(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
-                                                            vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
+vector<vector<tuple<unsigned, float, float> > >
+test_approx(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
+            vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
     size_t correct = 0;
     size_t total = 0;
     long double total_time = 0;
@@ -137,7 +139,7 @@ int main(int argc, char *argv[]) {
                 if (optarg)strcpy(logger_path, optarg);
                 break;
             case 's':
-                if (optarg)efSearch=atoi(optarg);
+                if (optarg)efSearch = atoi(optarg);
                 break;
         }
     }
@@ -165,7 +167,7 @@ int main(int argc, char *argv[]) {
     std::vector<unsigned> id_to_L1;
     unsigned feature_dim = 3, model_count = 1;
     feature_dim += model_count;
-    std::cerr << "feature dim:: " << feature_dim << " models:: " << model_count<<endl;
+    std::cerr << "feature dim:: " << feature_dim << " models:: " << model_count << endl;
     id_to_L1.resize(appr_alg->cur_element_count);
     for (int i = 0; i < id_to_L1.size(); i++) {
         id_to_L1[appr_alg->getExternalLabel(i)] = i;
@@ -174,10 +176,10 @@ int main(int argc, char *argv[]) {
         float *q = Q.data + i * Q.d;
         unsigned int *gt = G.data + i * G.d;
         appr_alg->PQ->calc_dist_map(q);
-        float thresh_dist = naive_l2_dist_calc(q, (float*)appr_alg->getDataByInternalId(id_to_L1[gt[subk - 1]]), Q.d);
+        float thresh_dist = naive_l2_dist_calc(q, (float *) appr_alg->getDataByInternalId(id_to_L1[gt[subk - 1]]), Q.d);
         for (int j = 0; j < subk; j++) {
             unsigned L1_id = id_to_L1[gt[j]];
-            float acc_dist = naive_l2_dist_calc(q,(float*)appr_alg->getDataByInternalId(L1_id), Q.d);
+            float acc_dist = naive_l2_dist_calc(q, (float *) appr_alg->getDataByInternalId(L1_id), Q.d);
             float app_dist = appr_alg->PQ->naive_product_map_dist(L1_id);
             float cluster_dist = appr_alg->PQ->node_cluster_dist_[L1_id];
             app.push_back(app_dist);
@@ -192,10 +194,10 @@ int main(int argc, char *argv[]) {
         float *q = Q.data + i * Q.d;
         unsigned int *gt = G.data + i * G.d;
         appr_alg->PQ->calc_dist_map(q);
-        float thresh_dist = naive_l2_dist_calc(q, (float*)appr_alg->getDataByInternalId(id_to_L1[gt[subk - 1]]), Q.d);
+        float thresh_dist = naive_l2_dist_calc(q, (float *) appr_alg->getDataByInternalId(id_to_L1[gt[subk - 1]]), Q.d);
         for (auto u: res[i]) {
             unsigned L1_id = get<0>(u);
-            if(KNNmap[L1_id]) continue;
+            if (KNNmap[L1_id]) continue;
             float acc_dist = get<1>(u);
             float app_dist = appr_alg->PQ->naive_product_map_dist(L1_id);
             float cluster_dist = appr_alg->PQ->node_cluster_dist_[L1_id];
@@ -204,13 +206,14 @@ int main(int argc, char *argv[]) {
             cluster.push_back(cluster_dist);
             thresh.push_back(thresh_dist);
         }
+        if (acc.size() > elements_bound) break;
     }
 
 
     std::ofstream out(logger_path, std::ios::binary);
-    int knn_count=0;
+    int knn_count = 0;
     for (int tag = 0; tag < acc.size(); tag++) {
-        if(acc[tag] < (double) thresh[tag] + 1e-8){
+        if (acc[tag] < (double) thresh[tag] + 1e-8) {
             out.write((char *) &feature_dim, sizeof(unsigned));
             out.write((char *) &acc[tag], sizeof(float));
             out.write((char *) &app[tag], sizeof(float));
@@ -219,12 +222,12 @@ int main(int argc, char *argv[]) {
             knn_count++;
         }
     }
-    std::cerr<<knn_count<<endl;
-    static std::default_random_engine Engine; //静态
-    static std::uniform_int_distribution<unsigned> rand(0,acc.size());
-    for (int tag = 0; tag < std::min((unsigned long)1000000,acc.size()); tag++) {
+    std::cerr << knn_count << endl;
+    static std::default_random_engine Engine;
+    static std::uniform_int_distribution<unsigned> rand(0, acc.size());
+    for (int tag = 0; tag < std::min((unsigned long) elements_bound, acc.size()); tag++) {
         unsigned rand_index = rand(Engine);
-        if(acc[rand_index] > thresh[rand_index]){
+        if (acc[rand_index] > thresh[rand_index]) {
             out.write((char *) &feature_dim, sizeof(unsigned));
             out.write((char *) &acc[rand_index], sizeof(float));
             out.write((char *) &app[rand_index], sizeof(float));
@@ -244,8 +247,8 @@ int main(int argc, char *argv[]) {
         fout.setf(ios::fixed, ios::floatfield);
         fout.precision(6);
         fout << L.model_count << endl;
-        L.binary_search_multi_linear(acc.size(), app.data(), acc.data(),cluster.data(), thresh.data());
-        fout << L.W_[0]<<" "<<L.W_[1] << " " << L.B_[0] << endl;
+        L.binary_search_multi_linear(acc.size(), app.data(), acc.data(), cluster.data(), thresh.data());
+        fout << L.W_[0] << " " << L.W_[1] << " " << L.B_[0] << endl;
     }
     return 0;
 }

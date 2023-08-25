@@ -21,9 +21,10 @@ using namespace std;
 const int MAXK = 100;
 
 long double rotation_time = 0;
-unsigned count_bound = 1000;
+unsigned count_bound = 10000;
 unsigned efSearch = 0;
-double recall = 0.9999;
+double recall = 0.999;
+unsigned elements_bound = 5000000;
 
 vector<vector<tuple<unsigned, float, float> > > test_logger(const Matrix<float> &Q, const IVF &ivf, int k) {
     vector<int> nprobes;
@@ -135,6 +136,9 @@ int main(int argc, char *argv[]) {
     count_bound = std::min(count_bound, (unsigned) Q.n);
     PCA.project_vector(Q.data, count_bound);
     ivf.PCA = &PCA;
+
+    cerr << "test begin" << endl;
+
     auto res = test_logger(Q, ivf, subk);
     std::vector<float> acc, thresh;
     std::vector<std::vector<float> > app;
@@ -195,6 +199,7 @@ int main(int argc, char *argv[]) {
             acc.push_back(node_dist);
             thresh.push_back(thresh_dist);
         }
+        if(acc.size() > elements_bound) break;
     }
 
     std::ofstream out(logger_path, std::ios::binary);
@@ -213,7 +218,7 @@ int main(int argc, char *argv[]) {
     std::cerr << knn_count << endl;
     static std::default_random_engine Engine;
     static std::uniform_int_distribution<unsigned> rand(0, acc.size());
-    for (int tag = 0; tag < std::min((unsigned long) 1000000, acc.size()); tag++) {
+    for (int tag = 0; tag < std::min((unsigned long) 5000000, acc.size()); tag++) {
         unsigned rand_index = rand(Engine);
         if (acc[rand_index] > thresh[rand_index]) {
             out.write((char *) &feature_dim, sizeof(unsigned));
@@ -226,17 +231,21 @@ int main(int argc, char *argv[]) {
     }
     out.close();
 
-    std::cerr << "save finished" << endl;
+    double exp_recall = std::pow(recall, (1.0/(model_count-1.0)));
+    double cur_recall = 1.0;
+    std::cerr << "save finished with recall:: "<<recall<<" "<<exp_recall << endl;
     if (isFileExists_ifstream((linear_path))) {
         Linear::Linear L(ivf.D);
         L.count_base = count_bound * subk;
-        L.recall = recall;
         L.load_linear_model(linear_path);
         std::ofstream fout(linear_path);
         fout.setf(ios::fixed, ios::floatfield);
         fout.precision(6);
         fout << L.model_count << endl;
         for (int i = 0; i < L.model_count; i++) {
+            cur_recall *= exp_recall;
+            std::cerr<<cur_recall<<endl;
+            L.recall = cur_recall;
             if (i == L.model_count - 1) L.recall = 1;
             L.binary_search_single_linear(acc.size(), app[i].data(), acc.data(), thresh.data(), i);
             fout << L.W_[i] << " " << L.B_[i] << endl;

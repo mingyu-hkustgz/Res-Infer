@@ -21,9 +21,10 @@ using namespace std;
 const int MAXK = 100;
 
 long double rotation_time = 0;
-unsigned count_bound = 1000;
+unsigned count_bound = 10000;
 unsigned efSearch = 0;
 double recall = 0.999;
+unsigned elements_bound = 5000000;
 
 vector<vector<tuple<unsigned, float, float> > > test_logger(const Matrix<float> &Q, const IVF &ivf, int k) {
     vector<int> nprobes;
@@ -185,6 +186,7 @@ int main(int argc, char *argv[]) {
             cluster.push_back(cluster_dist);
             thresh.push_back(thresh_dist);
         }
+        if(acc.size() > elements_bound) break;
     }
 
     std::ofstream out(logger_path, std::ios::binary);
@@ -200,9 +202,9 @@ int main(int argc, char *argv[]) {
         }
     }
     std::cerr << knn_count << endl;
-    static std::default_random_engine Engine; //静态
+    static std::default_random_engine Engine;
     static std::uniform_int_distribution<unsigned> rand(0, acc.size());
-    for (int tag = 0; tag < std::min((unsigned long) 1000000, acc.size()); tag++) {
+    for (int tag = 0; tag < std::min((unsigned long) elements_bound, acc.size()); tag++) {
         unsigned rand_index = rand(Engine);
         if (acc[rand_index] > thresh[rand_index]) {
             out.write((char *) &feature_dim, sizeof(unsigned));

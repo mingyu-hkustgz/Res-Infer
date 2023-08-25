@@ -25,7 +25,7 @@ if __name__ == "__main__":
     K = args['K']
     print(f"visual - {dataset}")
     filename = f'./logger/{dataset}_logger_{method_type}_{method_dim}_{index_type}.fvecs'
-    save_path = f'./DATA/{dataset}/linear_{index_type}_{method_type}_{method_dim}_{K}.log'
+    save_path = f'./DATA/{dataset}/linear/linear_{index_type}_{method_type}_{method_dim}_{K}.log'
     original_data = fvecs_read(filename)
     acc_dist = original_data[:, 0]
     cluster_dist = original_data[:, 0]
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     B_ = []
     for model_id in range(1, model_num + 1):
         app_dist = original_data[:, model_id]
-        num = min(1000000, app_dist.shape[0])
+        num = min(5000000, app_dist.shape[0])
         y = np.zeros(num, dtype=int)
         if method_type == "opq":
             X = np.zeros((num, 3), dtype=float)
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         x_boundary = np.linspace(X[:10000, 0].min(), X[:10000, 0].max(), 100)
         y_boundary = -(model.coef_[0][0] * x_boundary + model.intercept_) / model.coef_[0][1]
         if verbose:
-            plt.scatter(X[:10000, 0], X[:10000, 1], c=y[:10000], alpha=0.2)
+            plt.scatter(X[:5000000:1000, 0], X[:5000000:1000, 1], c=y[:5000000:1000], alpha=0.2)
             plt.plot(x_boundary, y_boundary, "r--")
             plt.xlabel("approximate dist")
             plt.ylabel("threshold dist")
