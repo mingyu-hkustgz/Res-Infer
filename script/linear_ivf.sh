@@ -1,6 +1,5 @@
 cd ..
 
-K=1
 pca_dim=32
 opq_dim=32
 efSearch=50
@@ -23,6 +22,8 @@ for K in {20,100}; do
     elif [ $data == "_word2vec" ]; then
       opq_dim=75
       efSearch=50
+      opq_recall=0.999
+      pca_recall=0.995
     elif [ $data == "_glove2.2m" ]; then
       opq_dim=75
       efSearch=200
@@ -30,7 +31,7 @@ for K in {20,100}; do
       pca_recall=0.995
     elif [ $data == "gist" ]; then
       opq_dim=120
-      efSearch=200
+      efSearch=100
       opq_recall=0.999
       pca_recall=0.995
     elif [ $data == "deep1M" ]; then
@@ -49,8 +50,7 @@ for K in {20,100}; do
     index_path=./DATA/${data}
 
     index="${index_path}/${data}_ivf_opq_${opq_dim}.index"
-    linear="${index_path}/linear_ivf_opq_${opq_dim}_${K}.log"
-    learn="${data_path}/linear/${data}_learn.fvecs"
+    linear="${index_path}/linear/linear_ivf_opq_${opq_dim}_${K}.log"
     base="${data_path}/${data}_base.fvecs"
     learn="${data_path}/${data}_learn.fvecs"
     ground="${data_path}/${data}_learn_groundtruth.ivecs"

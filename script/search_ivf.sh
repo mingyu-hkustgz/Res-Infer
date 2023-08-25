@@ -13,38 +13,24 @@ for K in {20,100}; do
     if [ $data == "_tiny5m" ]; then
       opq_dim=96
       efSearch=100
-      opq_recall=0.999
-      pca_recall=0.995
     elif [ $data == "_msong" ]; then
       opq_dim=105
       efSearch=25
-      opq_recall=0.999
-      pca_recall=0.995
     elif [ $data == "_word2vec" ]; then
       opq_dim=75
       efSearch=20
-      opq_recall=0.999
-      pca_recall=0.995
     elif [ $data == "_glove2.2m" ]; then
       opq_dim=75
       efSearch=100
-      opq_recall=0.999
-      pca_recall=0.995
     elif [ $data == "gist" ]; then
       opq_dim=120
       efSearch=50
-      opq_recall=0.999
-      pca_recall=0.995
     elif [ $data == "deep1M" ]; then
       opq_dim=64
       efSearch=50
-      opq_recall=0.999
-      pca_recall=0.995
     elif [ $data == "sift" ]; then
       opq_dim=32
       efSearch=30
-      opq_recall=0.999
-      pca_recall=0.995
     fi
 
     data_path=/home/DATA/vector_data/${data}

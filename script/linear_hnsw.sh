@@ -1,6 +1,5 @@
 cd ..
 
-K=1
 pca_dim=32
 opq_dim=32
 efSearch=50

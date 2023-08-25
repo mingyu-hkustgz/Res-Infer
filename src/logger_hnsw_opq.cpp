@@ -23,7 +23,7 @@ using namespace hnswlib;
 const int MAXK = 100;
 
 long double rotation_time = 0;
-unsigned count_bound = 1000;
+unsigned count_bound = 10000;
 unsigned efSearch = 0;
 double recall = 0.999;
 unsigned elements_bound = 5000000;

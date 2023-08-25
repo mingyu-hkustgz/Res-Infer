@@ -6,9 +6,11 @@ cd ./script
 #
 #bash index_hnsw.sh
 
-bash linear_hnsw.sh
+bash linear_hnsw.sh &
 
-bash linear_ivf.sh
+bash linear_ivf.sh &
+
+wait
 
 bash search_ivf.sh
 

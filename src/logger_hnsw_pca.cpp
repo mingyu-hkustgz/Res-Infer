@@ -178,7 +178,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < id_to_L1.size(); i++) {
         id_to_L1[appr_alg->getExternalLabel(i)] = i;
     }
-    for (int i = 0; i < std::min((unsigned long) count_bound * 100 / subk, G.n); i++) {
+    for (int i = 0; i < count_bound; i++) {
         float *q = Q.data + i * Q.d;
         unsigned int *gt = G.data + i * G.d;
         float thresh_dist = naive_l2_dist_calc(q, (float *) appr_alg->getDataByInternalId(id_to_L1[gt[subk - 1]]), Q.d);
