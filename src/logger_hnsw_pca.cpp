@@ -1,4 +1,4 @@
-#define EIGEN_DONT_PARALLELIZE
+.#define EIGEN_DONT_PARALLELIZE
 #define EIGEN_DONT_VECTORIZE
 #define COUNT_DIMENSION
 // #define COUNT_DIST_TIME
@@ -30,7 +30,7 @@ unsigned elements_bound = 5000000;
 
 vector<vector<tuple<unsigned, float, float> > >
 test_approx(float *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<float> &appr_alg, size_t vecdim,
-            vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive) {
+            vector<std::priority_queue<std::pair<float, labeltype >>> &answers, size_t k, int adaptive=1) {
     size_t correct = 0;
     size_t total = 0;
     long double total_time = 0;

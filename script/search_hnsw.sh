@@ -34,10 +34,12 @@ for K in {20,100}; do
     index_path=/home/DATA/graph_data/hnsw
     result_path="./results/recall@${K}/${data}"
     temp_data=./DATA/${data}
+    query="${data_path}/${data}_query.fvecs"
+    gnd="${data_path}/${data}_groundtruth.ivecs"
     ef=500
     M=16
 
-    for randomize in {0..2}; do
+    for randomize in {0..1}; do
       if [ $randomize == "1" ]; then
         echo "HNSW++"
         index="${index_path}/O${data}_ef${ef}_M${M}.index"
@@ -50,32 +52,29 @@ for K in {20,100}; do
       fi
 
       res="${result_path}/${data}_ad_hnsw_${randomize}.log"
-      query="${data_path}/${data}_query.fvecs"
-      gnd="${data_path}/${data}_groundtruth.ivecs"
       trans="${temp_data}/O.fvecs"
       ./cmake-build-debug/src/search_hnsw -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch} &
     done
-
-    wait
 
     index="${index_path}/${data}_ef500_M16_opq.index"
     trans="${temp_data}/${data}_opq_matrix_${opq_dim}.fvecs"
     code_book="${temp_data}/${data}_codebook_${opq_dim}.centroid"
 
-    for randomize in {5..6}; do
+    randomize=6
 
-      res="${result_path}/${data}_ad_hnsw_${randomize}.log"
-      linear="${temp_data}/linear/linear_hnsw1_opq_${opq_dim}_${K}.log"
+    res="${result_path}/${data}_ad_hnsw_${randomize}.log"
+    linear="${temp_data}/linear/linear_hnsw1_opq_${opq_dim}_${K}.log"
 
-      ./cmake-build-debug/src/search_hnsw -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
+    ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
 
-    done
 
+    index="${index_path}/${data}_ef500_M16_pca.index"
+    trans="${temp_data}/${data}_pca_matrix_${pca_dim}.fvecs"
     randomize=8
     linear="${temp_data}/linear/linear_hnsw1_pca_${pca_dim}_${K}.log"
     res="${result_path}/${data}_ad_hnsw_${randomize}.log"
 
-    ./cmake-build-debug/src/search_hnsw -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch} &
+    ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch}
 
   done
 

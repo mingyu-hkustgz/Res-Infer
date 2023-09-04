@@ -37,7 +37,7 @@ for K in {20,100}; do
     index_path=./DATA/${data}
     result_path="./results/recall@${K}/${data}"
 
-    for randomize in {0..2}; do
+    for randomize in {0..1}; do
       if [ $randomize == "1" ]; then
         echo "IVF++"
       elif [ $randomize == "2" ]; then
@@ -59,7 +59,7 @@ for K in {20,100}; do
     done
     wait
 
-    for randomize in {3..4}; do
+    for randomize in 4; do
 
       res="${result_path}/${data}_ad_ivf_${randomize}.log"
       index="${index_path}/${data}_ivf_opq_${opq_dim}.index"
@@ -84,11 +84,11 @@ for K in {20,100}; do
 
     ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch} &
 
-    randomize=6
-    res="${result_path}/${data}_ad_ivf_${randomize}.log"
-    index="${index_path}/${data}_ivf2_pca_${pca_dim}.index"
-
-    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch} &
+#    randomize=6
+#    res="${result_path}/${data}_ad_ivf_${randomize}.log"
+#    index="${index_path}/${data}_ivf2_pca_${pca_dim}.index"
+#
+#    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch} &
 
   done
 done

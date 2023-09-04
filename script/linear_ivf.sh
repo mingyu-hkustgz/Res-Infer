@@ -5,44 +5,43 @@ opq_dim=32
 efSearch=50
 
 for K in {20,100}; do
-
   for data in {gist,sift,deep1M,_tiny5m,_msong,_word2vec,_glove2.2m}; do
     echo "Indexing - ${data}"
 
     if [ $data == "_tiny5m" ]; then
       opq_dim=96
       efSearch=200
-      opq_recall=0.999
+      opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "_msong" ]; then
       opq_dim=105
       efSearch=50
-      opq_recall=0.999
+      opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "_word2vec" ]; then
       opq_dim=75
       efSearch=50
-      opq_recall=0.999
+      opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "_glove2.2m" ]; then
       opq_dim=75
       efSearch=200
-      opq_recall=0.999
+      opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "gist" ]; then
       opq_dim=120
       efSearch=100
-      opq_recall=0.999
+      opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "deep1M" ]; then
       opq_dim=64
       efSearch=100
-      opq_recall=0.999
+      opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "sift" ]; then
       opq_dim=32
       efSearch=50
-      opq_recall=0.999
+      opq_recall=0.995
       pca_recall=0.995
     fi
 
@@ -51,7 +50,6 @@ for K in {20,100}; do
 
     index="${index_path}/${data}_ivf_opq_${opq_dim}.index"
     linear="${index_path}/linear/linear_ivf_opq_${opq_dim}_${K}.log"
-    base="${data_path}/${data}_base.fvecs"
     learn="${data_path}/${data}_learn.fvecs"
     ground="${data_path}/${data}_learn_groundtruth.ivecs"
     trans="${index_path}/${data}_opq_matrix_${opq_dim}.fvecs"
@@ -69,11 +67,11 @@ for K in {20,100}; do
     trans="${index_path}/${data}_pca_matrix_${pca_dim}.fvecs"
     logger="./logger/${data}_logger_pca_${pca_dim}_ivf.fvecs"
 
-    ./cmake-build-debug/src/logger_ivf_pca -d 2 -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -n ${base} -e ${pca_recall}
+    ./cmake-build-debug/src/logger_ivf_pca -d 2 -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_recall}
 
     python ./data/linear.py -d ${data} -m "pca" -p ${pca_dim} -i "ivf" -k ${K}
 
-    ./cmake-build-debug/src/logger_ivf_pca -d 2 -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -n ${base} -e ${pca_recall}
+    ./cmake-build-debug/src/logger_ivf_pca -d 2 -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_recall}
 
   done
 

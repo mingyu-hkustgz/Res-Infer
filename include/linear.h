@@ -99,7 +99,7 @@ namespace Linear {
                     }
                 }
                 bad_count = std::min(bad_count, count_base);
-                double test_recall = (double) (count_base - bad_count) / (double) count_base;
+                double test_recall = (double) ((double) count_base - (double)bad_count) / (double) count_base;
                 if (test_recall < recall) {
                     r = mid - eps;
                 } else {
@@ -128,7 +128,7 @@ namespace Linear {
                         bad_count++;
                     }
                 }
-                double test_recall = (double) (count_base - bad_count) / (double) count_base;
+                double test_recall = (double) ((double)count_base - (double) bad_count) / (double) count_base;
                 if (test_recall < recall) {
                     r = mid - eps;
                 } else {
