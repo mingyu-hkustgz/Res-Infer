@@ -1,14 +1,14 @@
 #pragma once
 #ifndef NO_MANUAL_VECTORIZATION
-#ifdef __SSE__
-#define USE_SSE
-#ifdef __AVX__
-#define USE_AVX
-#ifdef __AVX512F__
-#define USE_AVX512
-#endif
-#endif
-#endif
+//#ifdef __SSE__
+//#define USE_SSE
+//#ifdef __AVX__
+//#define USE_AVX
+//#ifdef __AVX512F__
+//#define USE_AVX512
+//#endif
+//#endif
+//#endif
 #endif
 
 #if defined(USE_AVX) || defined(USE_SSE)

@@ -263,6 +263,9 @@ ResultHeap IVF::search_with_quantizer(float* query, size_t k, size_t nprobe, flo
         for(int j=0;j<len[cluster_id];j++){
             size_t can = start[cluster_id] + j;
             if(L->linear_classifier_default_pq(PQ->naive_product_map_dist(can), PQ->node_cluster_dist_[can], thresh)) continue;
+#ifdef COUNT_DIMENSION
+            adsampling::tot_dimension += D;
+#endif
             float tmp_dist = sqr_dist(query, L1_data + can * D, D);
             if(KNNs.size() < k) KNNs.emplace(tmp_dist,id[can]);
             else if(tmp_dist < KNNs.top().first){
@@ -299,7 +302,6 @@ ResultHeap IVF::search_with_pca(float* query, size_t k, size_t nprobe, float dis
     size_t ncan = 0;
     for(int i=0;i<nprobe;i++)
         ncan += len[centroid_dist[i].second];
-    if(d == D)adsampling::tot_dimension += 1ll * ncan * D;
     float * dist = new float [ncan];
     Result * candidates = new Result [ncan];
     int * obj= new int [ncan];
@@ -383,15 +385,6 @@ ResultHeap IVF::search_with_quantizer_simd(float* query, size_t k, size_t nprobe
     float thresh = distK;
     for(int i=0;i<nprobe;i++){
         unsigned cluster_id = centroid_dist[i].second;
-#ifdef USE_AVX
-        std::vector<unsigned> ids;
-        for(int j=0;j<len[cluster_id];j++){
-            size_t can = start[cluster_id] + j;
-            ids.push_back(id[can]);
-        }
-        while(ids.size()%8!=0) ids.push_back(0);
-        auto res = PQ->avx8_dist_sacn(ids.data(), ids.size());
-#else
         std::vector<unsigned> ids;
         for(int j=0;j<len[cluster_id];j++){
             size_t can = start[cluster_id] + j;
@@ -399,7 +392,6 @@ ResultHeap IVF::search_with_quantizer_simd(float* query, size_t k, size_t nprobe
         }
         while(ids.size()%4!=0) ids.push_back(0);
         auto res = PQ->sse4_dist_sacn(ids.data(), ids.size());
-#endif
         for(int j=0;j<len[cluster_id];j++){
             size_t can = start[cluster_id] + j;
             if(L->linear_classifier_default_pq(res[j],PQ->node_cluster_dist_[can], thresh)) continue;
@@ -442,9 +434,9 @@ std::vector<std::tuple<unsigned, float, float> > IVF::search_logger(float* query
             size_t can = start[cluster_id] + j;
             float tmp_dist;
             if(d==D)
-                tmp_dist = sqr_dist(query, L1_data + can * d, d);
+                tmp_dist = sse_l2_dist_calc(query, L1_data + can * d, d);
             else
-                tmp_dist = sqr_dist(query, res_data + can * D, D);
+                tmp_dist = sse_l2_dist_calc(query, res_data + can * D, D);
             if(res_queue.size() < k) res_queue.push(tmp_dist);
             else if(tmp_dist < res_queue.top()){
                 res_queue.push(tmp_dist);

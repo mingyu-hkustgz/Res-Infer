@@ -2,6 +2,7 @@
 // Created by mingyu on 23-7-20.
 //
 #include "utils.h"
+#include "adsampling.h"
 
 #ifndef LEARN_TO_PRUNE_PQ_H
 #define LEARN_TO_PRUNE_PQ_H
@@ -58,6 +59,9 @@ namespace Index_PQ {
 
         float naive_product_map_dist(unsigned id) const {
             float res = 0;
+#ifdef COUNT_DIMENSION
+            adsampling::tot_dimension += sub_vector;
+#endif
             for (int i = 0; i < sub_vector; i++) {
                 res += dist_mp[i * sub_cluster_count + pq_mp[id * sub_vector + i]];
             }
@@ -134,6 +138,9 @@ namespace Index_PQ {
         float *sse4_dist_sacn(const unsigned *id, unsigned num) {
             auto res = new float[num];
             float arr[4];
+#ifdef COUNT_DIMENSION
+            adsampling::tot_dimension += sub_vector * num;
+#endif
             for (int i = 0; i < num; i += 4) {
                 __m128 candidate_dist;
                 const uint8_t *const pqcode0 = pq_mp + id[i] * sub_vector;
@@ -151,6 +158,9 @@ namespace Index_PQ {
         float *avx8_dist_sacn(const unsigned *id, unsigned num) {
             auto res = new float[num];
             float arr[8];
+#ifdef COUNT_DIMENSION
+            adsampling::tot_dimension += sub_vector * num;
+#endif
             for (int i = 0; i < num; i += 8) {
                 __m256 candidate_dist;
                 const uint8_t *const pqcode0 = pq_mp + id[i] * sub_vector;
@@ -172,6 +182,9 @@ namespace Index_PQ {
 
         float naive_product_dist(unsigned id, const float *query) const {
             float res = 0;
+#ifdef COUNT_DIMENSION
+            adsampling::tot_dimension += sub_vector;
+#endif
             for (int i = 0; i < sub_vector; i++) {
                 res += naive_l2_dist_calc(query + i * sub_dim, &pq_book[i][pq_mp[id * sub_vector + i]][0], sub_dim);
             }

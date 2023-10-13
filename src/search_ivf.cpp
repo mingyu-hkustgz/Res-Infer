@@ -1,6 +1,7 @@
 #define EIGEN_DONT_PARALLELIZE
 #define EIGEN_DONT_VECTORIZE
 #define COUNT_DIMENSION
+// #define USE_SSE
 // #define COUNT_DIST_TIME
 
 #include <iostream>
@@ -63,7 +64,7 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
 
         // (Search Parameter, Recall, Average Time/Query(us), Total Dimensionality)
         cout << nprobe << " " << recall * 100.00 << " " << time_us_per_query << " " << adsampling::tot_dimension << endl;
-        if(recall * 100.00 > 99.0) break;
+        if(recall * 100.00 > 99.5) break;
     }
 }
 

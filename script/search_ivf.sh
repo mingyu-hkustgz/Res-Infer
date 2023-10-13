@@ -7,11 +7,11 @@ efSearch=50
 C=4096
 cd ..
 for K in {20,100}; do
-  for data in {gist,sift,deep1M,_tiny5m,_msong,_word2vec,_glove2.2m}; do
+  for data in {sift,gist,deep1M,_word2vec,_glove2.2m}; do
     echo "Searching - ${data}"
 
     if [ $data == "_tiny5m" ]; then
-      opq_dim=96
+      opq_dim=48
       efSearch=100
     elif [ $data == "_msong" ]; then
       opq_dim=105
@@ -26,10 +26,10 @@ for K in {20,100}; do
       opq_dim=120
       efSearch=50
     elif [ $data == "deep1M" ]; then
-      opq_dim=64
+      opq_dim=32
       efSearch=50
     elif [ $data == "sift" ]; then
-      opq_dim=32
+      opq_dim=16
       efSearch=30
     fi
 
@@ -54,7 +54,7 @@ for K in {20,100}; do
       gnd="${data_path}/${data}_groundtruth.ivecs"
       trans="${index_path}/O.fvecs"
 
-      ./cmake-build-debug/src/search_ivf -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch} &
+      ./cmake-build-debug/src/search_ivf -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch}
 
     done
     wait
@@ -82,13 +82,13 @@ for K in {20,100}; do
     trans="${index_path}/${data}_pca_matrix_${pca_dim}.fvecs"
     linear="${index_path}/linear/linear_ivf_pca_${pca_dim}_${K}.log"
 
-    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch} &
+    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch}
 
 #    randomize=6
 #    res="${result_path}/${data}_ad_ivf_${randomize}.log"
 #    index="${index_path}/${data}_ivf2_pca_${pca_dim}.index"
 #
-#    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch} &
+#    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch}
 
   done
 done

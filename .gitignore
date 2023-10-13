@@ -10,4 +10,6 @@ __pycharm__
 *.hnsw
 *.png
 *.index
+result_tex.txt
+requirements.txt
 data/__pycache__/

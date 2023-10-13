@@ -1,6 +1,7 @@
 #define EIGEN_DONT_PARALLELIZE
 #define EIGEN_DONT_VECTORIZE
 #define COUNT_DIMENSION
+// #define USE_SSE
 // #define COUNT_DIST_TIME
 
 #include <iostream>
@@ -103,7 +104,7 @@ static void test_vs_recall(float *massQ, size_t vecsize, size_t qsize, Hierarchi
     for (size_t ef: efs) {
         appr_alg.setEf(ef);
         test_approx(massQ, vecsize, qsize, appr_alg, vecdim, answers, k, adaptive);
-        if(outer_recall > 99.0) break;
+        if(outer_recall > 99.5) break;
     }
 }
 

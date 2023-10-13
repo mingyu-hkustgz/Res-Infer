@@ -5,17 +5,16 @@ opq_dim=32
 efSearch=50
 
 for K in {20,100}; do
-  for data in {gist,sift,deep1M,_tiny5m,_msong,_word2vec,_glove2.2m}; do
+  for data in {sift,gist,deep1M,_word2vec,_glove2.2m}; do
     echo "Indexing - ${data}"
-
     if [ $data == "_tiny5m" ]; then
-      opq_dim=96
+      opq_dim=48
       efSearch=1000
       opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "_msong" ]; then
       opq_dim=105
-      efSearch=100
+      efSearch=200
       opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "_word2vec" ]; then
@@ -34,13 +33,13 @@ for K in {20,100}; do
       opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "deep1M" ]; then
-      opq_dim=64
+      opq_dim=32
       efSearch=500
       opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "sift" ]; then
-      opq_dim=32
-      efSearch=100
+      opq_dim=16
+      efSearch=200
       opq_recall=0.995
       pca_recall=0.995
     fi

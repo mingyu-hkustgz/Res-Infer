@@ -32,6 +32,9 @@ if __name__ == "__main__":
         print(f"visual - {dataset}")
         for K in [20, 100]:
             plt.figure(figsize=(12, 8))
+            file_path = f"./results/recall@{K}/{dataset}"
+            if not os.path.exists(file_path):
+                continue
             for i in range(9):
                 result_path = f"./results/recall@{K}/{dataset}/{dataset}_ad_hnsw_{i}.log"
                 if not os.path.exists(result_path):
@@ -86,9 +89,9 @@ if __name__ == "__main__":
                 elif i == 4:
                     label = "ivf-opq-sse"
                 elif i == 5:
-                    label = "ivf-pca+"
-                elif i == 6:
                     label = "ivf-pca++"
+                elif i == 6:
+                    label = "ivf-pca+"
 
                 recall, Qps = load_result_data(result_path)
                 plt.plot(recall, Qps, marker=ivf_marker[i], c=col[i], label=label, alpha=0.5, linestyle="--", markerfacecolor='white')

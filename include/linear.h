@@ -2,6 +2,7 @@
 // Created by BLD on 23-7-28.
 //
 #include "utils.h"
+#include "adsampling.h"
 
 #ifndef LEARN_TO_PRUNE_LINEAR_H
 #define LEARN_TO_PRUNE_LINEAR_H
@@ -36,19 +37,28 @@ namespace Linear {
         inline float
         multi_linear_classifier_(float *q, float *p, float thresh_dist, unsigned tag_model = 0, float res = 0) {
             unsigned cur = origin_dim;
+#ifdef COUNT_DIMENSION
+            adsampling::tot_dimension += origin_dim;
+#endif
             if (tag_model == 1) {
                 if (target_linear_classifier_(res, thresh_dist, 0)) return -res * W_[0] + B_[0];
                 cur += origin_dim;
             }
             for (; cur <= fix_dim; cur += origin_dim) {
-                res += naive_l2_dist_calc(q, p, origin_dim);
+                res += sqr_dist(p, q, origin_dim);
                 p += origin_dim;
                 q += origin_dim;
+#ifdef COUNT_DIMENSION
+                adsampling::tot_dimension += origin_dim;
+#endif
                 if (target_linear_classifier_(res, thresh_dist, tag_model)) return -res * W_[tag_model] + B_[tag_model];
                 tag_model++;
             }
             if (res_dim) {
-                res += naive_l2_dist_calc(q, p, res_dim);
+#ifdef COUNT_DIMENSION
+                adsampling::tot_dimension += res_dim;
+#endif
+                res += sqr_dist(q, p, res_dim);
                 if (res > thresh_dist) return -res;
             }
             return res;
