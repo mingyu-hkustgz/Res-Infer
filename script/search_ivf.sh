@@ -6,12 +6,15 @@ pca_dim=32
 efSearch=50
 C=4096
 cd ..
+
+source set.sh
+
 for K in {20,100}; do
-  for data in {sift,gist,deep1M,_word2vec,_glove2.2m}; do
+  for data in "${datasets[@]}"; do
     echo "Searching - ${data}"
 
     if [ $data == "_tiny5m" ]; then
-      opq_dim=48
+      opq_dim=96
       efSearch=100
     elif [ $data == "_msong" ]; then
       opq_dim=105
@@ -26,14 +29,14 @@ for K in {20,100}; do
       opq_dim=120
       efSearch=50
     elif [ $data == "deep1M" ]; then
-      opq_dim=32
+      opq_dim=64
       efSearch=50
     elif [ $data == "sift" ]; then
-      opq_dim=16
+      opq_dim=32
       efSearch=30
     fi
 
-    data_path=/home/DATA/vector_data/${data}
+    data_path=${store_path}/${data}
     index_path=./DATA/${data}
     result_path="./results/recall@${K}/${data}"
 
@@ -57,9 +60,8 @@ for K in {20,100}; do
       ./cmake-build-debug/src/search_ivf -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch}
 
     done
-    wait
 
-    for randomize in 4; do
+    for randomize in {3..4}; do
 
       res="${result_path}/${data}_ad_ivf_${randomize}.log"
       index="${index_path}/${data}_ivf_opq_${opq_dim}.index"

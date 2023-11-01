@@ -1,14 +1,14 @@
 cd ..
-
+source set.sh
 pca_dim=32
 opq_dim=32
 efSearch=50
 
 for K in {20,100}; do
-  for data in {sift,gist,deep1M,_word2vec,_glove2.2m}; do
+  for data in "${datasets[@]}"; do
     echo "Indexing - ${data}"
     if [ $data == "_tiny5m" ]; then
-      opq_dim=48
+      opq_dim=96
       efSearch=1000
       opq_recall=0.995
       pca_recall=0.995
@@ -33,18 +33,18 @@ for K in {20,100}; do
       opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "deep1M" ]; then
-      opq_dim=32
+      opq_dim=64
       efSearch=500
       opq_recall=0.995
       pca_recall=0.995
     elif [ $data == "sift" ]; then
-      opq_dim=16
+      opq_dim=32
       efSearch=200
       opq_recall=0.995
       pca_recall=0.995
     fi
 
-    data_path=/home/DATA/vector_data/${data}
+    data_path=${store_path}/${data}
     pre_data=./DATA/${data}
 
     index="/home/DATA/graph_data/hnsw/${data}_ef500_M16_opq.index"

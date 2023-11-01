@@ -1,5 +1,5 @@
-
 cd ..
+source set.sh
 
 efConstruction=500
 M=16
@@ -7,13 +7,13 @@ M=16
 pca_dim=32
 opq_dim=96
 
-for data in {sift,gist,deep1M,_word2vec,_glove2.2m};
+for data in "${datasets[@]}";
 do
 echo "Indexing - ${data}"
 
 if [ $data == "_tiny5m" ]
 then
-    opq_dim=48
+    opq_dim=96
 elif [ $data == "_msong" ]
 then
     opq_dim=105
@@ -28,13 +28,13 @@ then
     opq_dim=120
 elif [ $data == "deep1M" ]
 then
-    opq_dim=32
+    opq_dim=64
 elif [ $data == "sift" ]
 then
-    opq_dim=16
+    opq_dim=32
 fi
 
-data_path=/home/BLD/mingyu/DATA/vector_data/${data}
+data_path=${store_path}/${data}
 index_path=./DATA/${data}
 pre_path=./DATA/${data}
 

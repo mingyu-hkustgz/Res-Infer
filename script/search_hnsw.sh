@@ -3,12 +3,15 @@ pca_dim=32
 efSearch=50
 
 cd ..
+
+source set.sh
+
 for K in {20,100}; do
-  for data in {sift,gist,deep1M,_word2vec,_glove2.2m}; do
+  for data in "${datasets[@]}"; do
     echo "Searching - ${data}"
 
     if [ $data == "_tiny5m" ]; then
-      opq_dim=48
+      opq_dim=96
       efSearch=500
     elif [ $data == "_msong" ]; then
       opq_dim=105
@@ -23,14 +26,14 @@ for K in {20,100}; do
       opq_dim=120
       efSearch=250
     elif [ $data == "deep1M" ]; then
-      opq_dim=32
+      opq_dim=64
       efSearch=100
     elif [ $data == "sift" ]; then
-      opq_dim=16
+      opq_dim=32
       efSearch=50
     fi
 
-    data_path=/home/DATA/vector_data/${data}
+    data_path=${store_path}/${data}
     index_path=./DATA/${data}
     result_path="./results/recall@${K}/${data}"
     temp_data=./DATA/${data}
@@ -60,13 +63,19 @@ for K in {20,100}; do
     trans="${temp_data}/${data}_opq_matrix_${opq_dim}.fvecs"
     code_book="${temp_data}/${data}_codebook_${opq_dim}.centroid"
 
-    randomize=6
+    randomize=5
 
     res="${result_path}/${data}_ad_hnsw_${randomize}.log"
     linear="${temp_data}/linear/linear_hnsw1_opq_${opq_dim}_${K}.log"
 
     ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
 
+    randomize=6
+
+    res="${result_path}/${data}_ad_hnsw_${randomize}.log"
+    linear="${temp_data}/linear/linear_hnsw1_opq_${opq_dim}_${K}.log"
+
+    ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -b ${code_book} -l ${linear} -s ${efSearch}
 
     index="${index_path}/${data}_ef500_M16_pca.index"
     trans="${temp_data}/${data}_pca_matrix_${pca_dim}.fvecs"

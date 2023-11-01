@@ -1,17 +1,16 @@
-
 cd ..
-
+source set.sh
 C=4096
 pca_dim=32
 opq_dim=96
 
-for data in {sift,gist,deep1M,_word2vec,_glove2.2m};
+for data in "${datasets[@]}";
 do
 echo "Indexing - ${data}"
 
 if [ $data == "_tiny5m" ]
 then
-    opq_dim=48
+    opq_dim=96
 elif [ $data == "_msong" ]
 then
     opq_dim=105
@@ -26,10 +25,10 @@ then
     opq_dim=120
 elif [ $data == "deep1M" ]
 then
-    opq_dim=32
+    opq_dim=64
 elif [ $data == "sift" ]
 then
-    opq_dim=16
+    opq_dim=32
 fi
 
 python ./data/ivf.py -d ${data} -m "O"
@@ -44,7 +43,7 @@ do
 
 echo "Indexing - ${data}"
 
-data_path=/home/DATA/vector_data/${data}
+data_path=${store_path}/${data}
 index_path=./DATA/${data}
 
 if [ $adaptive == "0" ] # raw vectors 
