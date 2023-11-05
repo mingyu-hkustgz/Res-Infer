@@ -199,7 +199,7 @@ int main(int argc, char *argv[]) {
             acc.push_back(node_dist);
             thresh.push_back(thresh_dist);
         }
-        if(acc.size() > elements_bound) break;
+        if (acc.size() > elements_bound) break;
     }
 
     std::ofstream out(logger_path, std::ios::binary);
@@ -231,9 +231,9 @@ int main(int argc, char *argv[]) {
     }
     out.close();
 
-    double exp_recall = std::pow(recall, (1.0/(model_count-1.0)));
+    double exp_recall = 1.0 - (1.0 - recall) / (model_count - 1.0);
     double cur_recall = 1.0;
-    std::cerr << "save finished with recall:: "<<recall<<" "<<exp_recall << endl;
+    std::cerr << "save finished with recall:: " << recall << " " << exp_recall << endl;
     if (isFileExists_ifstream((linear_path))) {
         Linear::Linear L(ivf.D);
         L.count_base = count_bound * subk;
@@ -244,7 +244,7 @@ int main(int argc, char *argv[]) {
         fout << L.model_count << endl;
         for (int i = 0; i < L.model_count; i++) {
             cur_recall *= exp_recall;
-            std::cerr<<cur_recall<<endl;
+            std::cerr << cur_recall << endl;
             L.recall = cur_recall;
             if (i == L.model_count - 1) L.recall = 1;
             L.binary_search_single_linear(acc.size(), app[i].data(), acc.data(), thresh.data(), i);

@@ -25,7 +25,7 @@ def load_result_data(filename):
 
 
 if __name__ == "__main__":
-    out_put_file = open("result_tex.txt", "w")
+    out_put_file = open(f"result_tex_{method}.txt", "w")
     count = 0
     for dataset in datasets:
         print(f"visual - {dataset}")
@@ -45,6 +45,9 @@ if __name__ == "__main__":
             base_log = 10
         if dataset == "_word2vec":
             real_data = "WORD2VEC"
+            base_log = 10
+        if dataset == "_tiny5m":
+            real_data = "TINY"
             base_log = 10
         for K in [20, 100]:
             plt.figure(figsize=(12, 8))
@@ -75,16 +78,20 @@ grid style=dashed,
                     print(f"\\addplot[line width=0.15mm,color=red,mark=o,mark size=0.5mm]%hnsw {dataset}",
                           file=out_put_file)
                 elif i == 1:
-                    print(f"\\addplot[line width=0.15mm,color=olive,mark=o,mark size=0.5mm]%hnsw++ {dataset}",
+                    print(f"\\addplot[line width=0.15mm,color=orange,mark=o,mark size=0.5mm]%hnsw++ {dataset}",
                           file=out_put_file)
                 elif i == 5:
-                    print(f"\\addplot[line width=0.15mm,color=forestgreen,mark=o,mark size=0.5mm]%hnsw-opq++ {dataset}",
+                    if method == "sse":
+                        continue
+                    print(f"\\addplot[line width=0.15mm,color=navy,mark=o,mark size=0.5mm]%hnsw-pca++ {dataset}",
                           file=out_put_file)
                 elif i == 6:
-                    print(f"\\addplot[line width=0.15mm,color=forestgreen,mark=o,mark size=0.5mm]%hnsw-opq++ {dataset}",
+                    if method == "naive":
+                        continue
+                    print(f"\\addplot[line width=0.15mm,color=navy,mark=o,mark size=0.5mm]%hnsw-opq++ {dataset}",
                           file=out_put_file)
                 elif i == 8:
-                    print(f"\\addplot[line width=0.15mm,color=orange,mark=o,mark size=0.5mm]%hnsw-pca++ {dataset}",
+                    print(f"\\addplot[line width=0.15mm,color=forestgreen,mark=o,mark size=0.5mm]%hnsw-pca++ {dataset}",
                           file=out_put_file)
                 print("plot coordinates {", file=out_put_file)
                 for j in range(len(recall)):
@@ -124,18 +131,22 @@ grid style=dashed,
                     print(f"\\addplot[line width=0.15mm,color=red,mark=square,mark size=0.5mm]%ivf {dataset}",
                           file=out_put_file)
                 elif i == 1:
-                    print(f"\\addplot[line width=0.15mm,color=olive,mark=square,mark size=0.5mm]%ivf++ {dataset}",
+                    print(f"\\addplot[line width=0.15mm,color=orange,mark=square,mark size=0.5mm]%ivf++ {dataset}",
                           file=out_put_file)
                 elif i == 3:
+                    if method == "sse":
+                        continue
                     print(
-                        f"\\addplot[line width=0.15mm,color=forestgreen,mark=square,mark size=0.5mm]%ivf-opq++ {dataset}",
+                        f"\\addplot[line width=0.15mm,color=navy,mark=square,mark size=0.5mm]%ivf-pca++ {dataset}",
                         file=out_put_file)
                 elif i == 4:
+                    if method == "naive":
+                        continue
                     print(
-                        f"\\addplot[line width=0.15mm,color=forestgreen,mark=square,mark size=0.5mm]%ivf-opq++ {dataset}",
+                        f"\\addplot[line width=0.15mm,color=navy,mark=square,mark size=0.5mm]%ivf-opq++ {dataset}",
                         file=out_put_file)
                 elif i == 5:
-                    print(f"\\addplot[line width=0.15mm,color=orange,mark=square,mark size=0.5mm]%ivf-pca++ {dataset}",
+                    print(f"\\addplot[line width=0.15mm,color=forestgreen,mark=square,mark size=0.5mm]%ivf-pca++ {dataset}",
                           file=out_put_file)
                 print("plot coordinates {", file=out_put_file)
                 for j in range(len(recall)):

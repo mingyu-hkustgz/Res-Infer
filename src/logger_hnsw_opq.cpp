@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
     char codebook_path[256] = "";
     char linear_path[256] = "";
     char logger_path[256] = "";
-    int randomize = 0;
+    int randomize = 1;//default as HNSW++
     int subk = 100;
 
     while (iarg != -1) {

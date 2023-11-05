@@ -11,5 +11,9 @@ __pycharm__
 *.png
 *.index
 result_tex.txt
+result_tex_naive.txt
+result_tex_sse.txt
 requirements.txt
 data/__pycache__/
+to_tex1.py
+to_tex.py

@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
     char codebook_path[256] = "";
     char linear_path[256] = "";
     char logger_path[256] = "";
-    int randomize = 0;
+    int randomize = 1;//default as HNSW++
     int subk = 100;
 
     while (iarg != -1) {
@@ -253,7 +253,7 @@ int main(int argc, char *argv[]) {
     }
     out.close();
 
-    double exp_recall = std::pow(recall, (1.0/(model_count-1.0)));
+    double exp_recall = 1.0 - (1.0 - recall) / (model_count - 1.0);
     double cur_recall = 1.0;
     std::cerr << "save finished with recall:: "<<recall<<" "<<exp_recall << endl;
     if (isFileExists_ifstream((linear_path))) {

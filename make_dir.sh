@@ -1,3 +1,4 @@
+source set.sh
 mkdir ./DATA
 mkdir ./results
 mkdir ./results/recall@20
@@ -7,14 +8,18 @@ cd cmake-build-debug
 cmake ..
 make clean
 make -j 40
+
 cd ..
-for dataset in {sift,gist,deep1M,_word2vec,_glove2.2m};
+
+mkdir ./logger
+mkdir ./figure
+
+for dataset in "${datasets[@]}";
 do
+  echo $dataset
   mkdir ./DATA/${dataset}
   mkdir ./DATA/${dataset}/linear
   mkdir ./results/recall@20/${dataset}
   mkdir ./results/recall@100/${dataset}
+  mkdir ./figure/${dataset}
 done
-
-mkdir ./logger
-mkdir ./figure

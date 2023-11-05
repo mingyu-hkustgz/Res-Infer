@@ -47,7 +47,7 @@ for K in {20,100}; do
     data_path=${store_path}/${data}
     pre_data=./DATA/${data}
 
-    index="/home/DATA/graph_data/hnsw/${data}_ef500_M16_opq.index"
+    index="${pre_data}/${data}_ef500_M16_opq.index"
     learn="${data_path}/${data}_learn.fvecs"
     ground="${data_path}/${data}_learn_groundtruth.ivecs"
     trans="${pre_data}/${data}_opq_matrix_${opq_dim}.fvecs"
@@ -64,7 +64,7 @@ for K in {20,100}; do
     ./cmake-build-debug/src/logger_hnsw_opq -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -b ${code_book} -k ${K} -s ${efSearch} -e ${opq_recall}
 
     trans="${pre_data}/${data}_pca_matrix_${pca_dim}.fvecs"
-    index="/home/DATA/graph_data/hnsw/${data}_ef500_M16_pca.index"
+    index="${pre_data}/${data}_ef500_M16_pca.index"
     linear="${pre_data}/linear/linear_${index_type}_pca_${pca_dim}_${K}.log"
     logger="./logger/${data}_logger_pca_${pca_dim}_${index_type}.fvecs"
 

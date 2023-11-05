@@ -1,7 +1,11 @@
 #define EIGEN_DONT_PARALLELIZE
 #define EIGEN_DONT_VECTORIZE
 #define COUNT_DIMENSION
-// #define USE_SSE
+#define COUNT_PRUNE_RATE
+/***
+ * The operation to define use SSE
+ ***/
+//#define USE_SSE
 // #define COUNT_DIST_TIME
 
 #include <iostream>
@@ -63,7 +67,10 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
         float recall = 1.0f * correct / (Q.n * k);
 
         // (Search Parameter, Recall, Average Time/Query(us), Total Dimensionality)
-        cout << nprobe << " " << recall * 100.00 << " " << time_us_per_query << " " << adsampling::tot_dimension << endl;
+        if(randomize<=2|| randomize==5)
+            cout << nprobe << " " << recall * 100.00 << " " << time_us_per_query << " " << adsampling::tot_dimension << endl;
+        else
+            cout << nprobe << " " << recall * 100.00 << " " << time_us_per_query << " " << (double)adsampling::tot_dist_calculation / (double)adsampling::tot_pq_dist << endl;
         if(recall * 100.00 > 99.5) break;
     }
 }

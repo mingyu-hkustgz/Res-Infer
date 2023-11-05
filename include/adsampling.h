@@ -23,6 +23,7 @@ long double distance_time = 0;
 unsigned long long tot_dimension = 0;
 unsigned long long tot_dist_calculation = 0;
 unsigned long long tot_full_dist = 0;
+unsigned long long tot_pq_dist = 0;
 
 void clear(){
     distance_time = 0;

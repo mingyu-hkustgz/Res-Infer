@@ -1,7 +1,11 @@
 #define EIGEN_DONT_PARALLELIZE
 #define EIGEN_DONT_VECTORIZE
 #define COUNT_DIMENSION
-// #define USE_SSE
+#define COUNT_PRUNE_RATE
+/***
+ * The operation to define use SSE
+ ***/
+//#define USE_SSE
 // #define COUNT_DIST_TIME
 
 #include <iostream>
