@@ -4,4 +4,3 @@ scikit-learn
 matplotlib
 scipy
 tqdm
-

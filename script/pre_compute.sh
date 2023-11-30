@@ -8,27 +8,22 @@ nbits=8
 for data in "${datasets[@]}"; do
   echo "Indexing - ${data}"
 
-  if [ $data == "_tiny5m" ]
-  then
-      opq_dim=96
-  elif [ $data == "_msong" ]
-  then
-      opq_dim=105
-  elif [ $data == "_word2vec" ]
-  then
-      opq_dim=75
-  elif [ $data == "_glove2.2m" ]
-  then
-      opq_dim=75
-  elif [ $data == "gist" ]
-  then
-      opq_dim=120
-  elif [ $data == "deep1M" ]
-  then
-      opq_dim=64
-  elif [ $data == "sift" ]
-  then
-      opq_dim=32
+  if [ $data == "_tiny5m" ]; then
+    opq_dim=96
+  elif [ $data == "_msong" ]; then
+    opq_dim=105
+  elif [ $data == "_word2vec" ]; then
+    opq_dim=75
+  elif [ $data == "_glove2.2m" ]; then
+    opq_dim=75
+  elif [ $data == "gist" ]; then
+    opq_dim=120
+  elif [ $data == "deep1M" ]; then
+    opq_dim=64
+  elif [ $data == "_sift10m" ]; then
+    opq_dim=32
+  elif [ $data == "deep100M" ]; then
+    opq_dim=24
   fi
 
   python ./data/randomized.py -d ${data}

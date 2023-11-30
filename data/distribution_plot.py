@@ -51,12 +51,12 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbose', help='visual option', default=False)
     parser.add_argument('-k', '--K', help='K nearest neighbor', default=1)
     args = vars(parser.parse_args())
-    dataset = "gist"
-    method_type = "opq"
-    method_dim = "120"
+    dataset = "deep1M"
+    method_type = "pca"
+    method_dim = "32"
     index_type = "hnsw1"
     verbose = True
-    K = 100
+    K = 20
     print(f"visual - {dataset}")
     filename = f'./logger/{dataset}_logger_{method_type}_{method_dim}_{index_type}.fvecs'
     linear_path = f'./DATA/{dataset}/linear/linear_hnsw1_{method_type}_{method_dim}_{K}.log'
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
     ax2.axis('off')
-    for model_id in [1]:
+    for model_id in [1,2,4]:
         app_dist = original_data[:, model_id]
         num = min(5000000, app_dist.shape[0])
         y = np.zeros(num, dtype=int)
@@ -112,6 +112,8 @@ if __name__ == "__main__":
         dim = model_id * 120
         arr_mean = np.mean(X_sample)
         arr_var = np.var(X_sample)
+        print(arr_mean, arr_var)
+        print("%.8f" % arr_var)
         pdf = norm.pdf(X_sample, arr_mean, arr_var)
         # print(X_sample)
         ax2.hist(X_sample, bins=500, alpha=0.5)

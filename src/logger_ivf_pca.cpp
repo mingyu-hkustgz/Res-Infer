@@ -232,7 +232,6 @@ int main(int argc, char *argv[]) {
     out.close();
 
     double exp_recall = 1.0 - (1.0 - recall) / (model_count - 1.0);
-    double cur_recall = 1.0;
     std::cerr << "save finished with recall:: " << recall << " " << exp_recall << endl;
     if (isFileExists_ifstream((linear_path))) {
         Linear::Linear L(ivf.D);
@@ -243,12 +242,11 @@ int main(int argc, char *argv[]) {
         fout.precision(6);
         fout << L.model_count << endl;
         for (int i = 0; i < L.model_count; i++) {
-            cur_recall *= exp_recall;
-            std::cerr << cur_recall << endl;
-            L.recall = cur_recall;
+            std::cerr << exp_recall << endl;
+            L.recall = exp_recall;
             if (i == L.model_count - 1) L.recall = 1;
             L.binary_search_single_linear(acc.size(), app[i].data(), acc.data(), thresh.data(), i);
-            fout << L.W_[i] << " " << L.B_[i] << endl;
+            fout << L.W_[i] << " " << L.B_[i]<< " "<<L.b_[i] << endl;
         }
     }
     return 0;

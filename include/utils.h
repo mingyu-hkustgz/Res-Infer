@@ -244,6 +244,15 @@ inline float naive_l2_dist_calc(const float *p, const float *q, const unsigned d
 }
 
 __attribute__((always_inline))
+inline float naive_lp_dist_calc(const float *p, const float *q, const unsigned dim) {
+    float ans = 0;
+    for (unsigned i = 0; i < dim; i++) {
+        ans += (p[i]*q[i]);
+    }
+    return ans;
+}
+
+__attribute__((always_inline))
 inline float sse_l2_dist_calc(const float *pVect1, const float *pVect2, const unsigned qty) {
     float __attribute__((aligned(32))) TmpRes[8];
     size_t qty4 = qty >> 2;

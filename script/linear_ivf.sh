@@ -38,7 +38,7 @@ for K in {20,100}; do
       efSearch=100
       opq_recall=0.995
       pca_recall=0.995
-    elif [ $data == "sift" ]; then
+    elif [ $data == "_sift10m" ]; then
       opq_dim=32
       efSearch=100
       opq_recall=0.995

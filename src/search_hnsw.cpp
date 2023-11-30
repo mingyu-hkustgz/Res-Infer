@@ -108,7 +108,7 @@ static void test_vs_recall(float *massQ, size_t vecsize, size_t qsize, Hierarchi
     for (size_t ef: efs) {
         appr_alg.setEf(ef);
         test_approx(massQ, vecsize, qsize, appr_alg, vecdim, answers, k, adaptive);
-        if(outer_recall > 99.5) break;
+//        if(outer_recall > 99.5) break;
     }
 }
 
@@ -218,6 +218,7 @@ int main(int argc, char *argv[]) {
         PQ->project_vector(Q.data, Q.n);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         adsampling::D = Q.d;
+        std::cerr << "rotate time:: " << rotation_time << endl;
     }else if(7<=randomize&&randomize<=8){
         std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
         auto PCA = new Index_PCA::PCA(appr_alg->cur_element_count, Q.d);

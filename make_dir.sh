@@ -3,6 +3,8 @@ mkdir ./DATA
 mkdir ./results
 mkdir ./results/recall@20
 mkdir ./results/recall@100
+mkdir ./results/recall@1
+rm -r cmake-build-debug
 mkdir cmake-build-debug
 cd cmake-build-debug
 cmake ..
@@ -19,6 +21,7 @@ do
   echo $dataset
   mkdir ./DATA/${dataset}
   mkdir ./DATA/${dataset}/linear
+  mkdir ./results/recall@1/${dataset}
   mkdir ./results/recall@20/${dataset}
   mkdir ./results/recall@100/${dataset}
   mkdir ./figure/${dataset}

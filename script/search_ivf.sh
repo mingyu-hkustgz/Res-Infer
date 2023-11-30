@@ -31,7 +31,7 @@ for K in {20,100}; do
     elif [ $data == "deep1M" ]; then
       opq_dim=64
       efSearch=50
-    elif [ $data == "sift" ]; then
+    elif [ $data == "_sift10m" ]; then
       opq_dim=32
       efSearch=30
     fi
@@ -57,7 +57,7 @@ for K in {20,100}; do
       gnd="${data_path}/${data}_groundtruth.ivecs"
       trans="${index_path}/O.fvecs"
 
-      ./cmake-build-debug/src/search_ivf -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch}
+#      ./cmake-build-debug/src/search_ivf -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch} &
 
     done
 
@@ -84,7 +84,7 @@ for K in {20,100}; do
     trans="${index_path}/${data}_pca_matrix_${pca_dim}.fvecs"
     linear="${index_path}/linear/linear_ivf_pca_${pca_dim}_${K}.log"
 
-    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch}
+#    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch} &
 
 #    randomize=6
 #    res="${result_path}/${data}_ad_ivf_${randomize}.log"
@@ -93,4 +93,5 @@ for K in {20,100}; do
 #    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch}
 
   done
+  wait
 done

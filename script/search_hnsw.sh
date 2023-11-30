@@ -28,9 +28,12 @@ for K in {20,100}; do
     elif [ $data == "deep1M" ]; then
       opq_dim=64
       efSearch=100
-    elif [ $data == "sift" ]; then
+    elif [ $data == "_sift10m" ]; then
       opq_dim=32
       efSearch=50
+    elif [ $data == "deep100M" ]; then
+      opq_dim=24
+      efSearch=500
     fi
 
     data_path=${store_path}/${data}
@@ -56,7 +59,7 @@ for K in {20,100}; do
 
       res="${result_path}/${data}_ad_hnsw_${randomize}.log"
       trans="${temp_data}/O.fvecs"
-      ./cmake-build-debug/src/search_hnsw -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch}
+#      ./cmake-build-debug/src/search_hnsw -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch} &
     done
 
     index="${index_path}/${data}_ef500_M16_opq.index"
@@ -83,8 +86,8 @@ for K in {20,100}; do
     linear="${temp_data}/linear/linear_hnsw1_pca_${pca_dim}_${K}.log"
     res="${result_path}/${data}_ad_hnsw_${randomize}.log"
 
-    ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch}
+#    ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -l ${linear} -s ${efSearch} &
 
   done
-
+  wait
 done
