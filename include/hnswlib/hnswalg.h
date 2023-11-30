@@ -2393,7 +2393,7 @@ namespace hnswlib {
             PQ->pq_mp = new unsigned char[PQ->nd_ * PQ->sub_vector];
             PQ->node_cluster_dist_ = new float[PQ->nd_];
             double ave_dist = 0.0;
-#pragma omp parallel for
+#pragma omp parallel for num_threads(1)
             for (int i = 0; i < PQ->nd_; i++) {
                 float dist_to_centroid = 0.0;
                 for (int j = 0; j < PQ->sub_vector; j++) {

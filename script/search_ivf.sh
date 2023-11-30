@@ -31,7 +31,7 @@ for K in {20,100}; do
     elif [ $data == "deep1M" ]; then
       opq_dim=64
       efSearch=50
-    elif [ $data == "sift" ]; then
+    elif [ $data == "_sift10m" ]; then
       opq_dim=32
       efSearch=30
     fi

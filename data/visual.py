@@ -39,9 +39,9 @@ if __name__ == "__main__":
             x = np.linspace(feature_min, feature_min + 1, 50)
             y = x
             if verbose:
-                plt.scatter(class1_dist[::100], class1_thresh[::100], c='b', label="Label 1", alpha=0.1)
-                plt.scatter(class2_dist[::100], class2_thresh[::100], c='r', label="Label 2", alpha=0.1)
-                plt.plot(x, y, color='green', linewidth=1.0, linestyle='--',alpha=0.6)
+                plt.scatter(class1_dist[::1000], class1_thresh[::1000], c='navy', label="Label 1", alpha=0.2)
+                plt.scatter(class2_dist[::1000], class2_thresh[::1000], c='gold', label="Label 0", alpha=0.2)
+                plt.plot(x, y, color='r', linewidth=1.0, linestyle='--',alpha=0.6)
                 plt.legend()
                 plt.savefig(f'./figure/{dataset}/{dataset}_{method_type}_{method_dim}_{index_type}_{model_id}.png',
                             dpi=500)

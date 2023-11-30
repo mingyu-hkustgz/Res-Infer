@@ -5,6 +5,7 @@ import os
 from utils import fvecs_write, fvecs_read
 import argparse
 source = '/home/DATA/vector_data'
+pre_source = './DATA'
 # the number of clusters
 K = 4096
 
@@ -16,27 +17,52 @@ if __name__ == '__main__':
     args = vars(parser.parse_args())
     dataset = args['dataset']
     method = args['method']
+    source = os.getenv('store_path')
+    print(source)
     proj_dim = int(args['project'])
-    path = os.path.join(source, dataset)
-    data_path = os.path.join(path, f'{dataset}_base.fvecs')
-    centroids_path = os.path.join(path, f'{dataset}_centroid_{K}.fvecs')
-    X = fvecs_read(data_path)
-    D = X.shape[1]
-    # cluster data vectors
-    index = faiss.index_factory(D, f"IVF{K},Flat")
-    index.verbose = True
-    index.train(X)
-    centroids = index.quantizer.reconstruct_n(0, index.nlist)
-    fvecs_write(centroids_path, centroids)
     print(f"Clustering - {dataset}")
-    if method == 'O':
-        modified_cluster_path = f"./DATA/{dataset}/O{dataset}_centroid_{K}.fvecs"
-        transformation_path = f'./DATA/{dataset}/O.fvecs'
-    else:
-        modified_cluster_path = f"./DATA/{dataset}/{dataset}_centroid_{method}_{proj_dim}.fvecs"
-        transformation_path = f"./DATA/{dataset}/{dataset}_{method}_matrix_{proj_dim}.fvecs"
-
-    P = fvecs_read(transformation_path)
-    # modified_ centroids
-    modified_centroids = np.dot(centroids, P)
-    fvecs_write(modified_cluster_path, modified_centroids)
+    if method == "naive":
+        path = os.path.join(source, dataset)
+        data_path = os.path.join(path, f'{dataset}_base.fvecs')
+        centroids_path = os.path.join(path, f'{dataset}_centroid_{K}.fvecs')
+        X = fvecs_read(data_path)
+        D = X.shape[1]
+        # cluster data vectors
+        index = faiss.index_factory(D, f"IVF{K},Flat")
+        index.verbose = True
+        index.train(X)
+        centroids = index.quantizer.reconstruct_n(0, index.nlist)
+        fvecs_write(centroids_path, centroids)
+    elif method == 'O':
+        data_path = f'./DATA/{dataset}/O{dataset}_base.fvecs'
+        centroids_path = f"./DATA/{dataset}/O{dataset}_centroid_{K}.fvecs"
+        X = fvecs_read(data_path)
+        D = X.shape[1]
+        # cluster data vectors
+        index = faiss.index_factory(D, f"IVF{K},Flat")
+        index.verbose = True
+        index.train(X)
+        centroids = index.quantizer.reconstruct_n(0, index.nlist)
+        fvecs_write(centroids_path, centroids)
+    elif method == 'opq':
+        data_path = f'./DATA/{dataset}/{dataset}_base_{method}_{proj_dim}.fvecs'
+        centroids_path = f"./DATA/{dataset}/{dataset}_centroid_{method}_{proj_dim}.fvecs"
+        X = fvecs_read(data_path)
+        D = X.shape[1]
+        # cluster data vectors
+        index = faiss.index_factory(D, f"IVF{K},Flat")
+        index.verbose = True
+        index.train(X)
+        centroids = index.quantizer.reconstruct_n(0, index.nlist)
+        fvecs_write(centroids_path, centroids)
+    elif method == 'pca':
+        data_path = f'./DATA/{dataset}/{dataset}_base_{method}_{proj_dim}.fvecs'
+        centroids_path = f"./DATA/{dataset}/{dataset}_centroid_{method}_{proj_dim}.fvecs"
+        X = fvecs_read(data_path)
+        D = X.shape[1]
+        # cluster data vectors
+        index = faiss.index_factory(D, f"IVF{K},Flat")
+        index.verbose = True
+        index.train(X)
+        centroids = index.quantizer.reconstruct_n(0, index.nlist)
+        fvecs_write(centroids_path, centroids)
