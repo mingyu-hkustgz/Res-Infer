@@ -54,33 +54,22 @@ if __name__ == "__main__":
     dataset = "deep1M"
     method_type = "pca"
     method_dim = "32"
-    index_type = "hnsw1"
+    index_type = "ivf"
     verbose = True
     K = 20
     print(f"visual - {dataset}")
     filename = f'./logger/{dataset}_logger_{method_type}_{method_dim}_{index_type}.fvecs'
-    linear_path = f'./DATA/{dataset}/linear/linear_hnsw1_{method_type}_{method_dim}_{K}.log'
+    # linear_path = f'./DATA/{dataset}/linear/linear_hnsw1_{method_type}_{method_dim}_{K}.log'
     original_data = fvecs_read(filename)
     acc_dist = original_data[:, 0]
     cluster_dist = original_data[:, 0]
     thresh_dist = original_data[:, -1]
-    if method_type == "opq":
-        cluster_dist = original_data[:, -2]
-        model_num = 1
-        W, B = load_single_model(linear_path)
-        print(W)
-    else:
-        model_num = original_data.shape[1] - 2
-        W, B = load_multi_model(linear_path)
-        print(W)
+
 
     plt.rc('font', family='Times New Roman')
     plt.figure(figsize=(5, 4))
     plt.rcParams.update({'font.size': 18})
-    fig, ax1 = plt.subplots()
-    ax2 = ax1.twinx()
-    ax2.axis('off')
-    for model_id in [1,2,4]:
+    for model_id in [2, 3, 4]:
         app_dist = original_data[:, model_id]
         num = min(5000000, app_dist.shape[0])
         y = np.zeros(num, dtype=int)
@@ -92,33 +81,23 @@ if __name__ == "__main__":
         for i in tqdm(range(num)):
             if acc_dist[i] > thresh_dist[i]:
                 y[i] = 1
-            if method_type == "opq":
-                X[i][0] = app_dist[i]
-                X[i][1] = thresh_dist[i]
-                X[i][2] = cluster_dist[i]
-            else:
                 X[i][0] = app_dist[i]
                 X[i][1] = thresh_dist[i]
 
         X_sample = []
         for i in range(num):
             if y[i] == 1:
-                if method_type == "opq":
-                    X_sample.append(X[i][0] * W[0] + X[i][2] * W[1] + B[0] - acc_dist[i])
-                else:
-                    X_sample.append(X[i][0] * W[model_id - 1] + B[model_id - 1] - acc_dist[i])
+                X_sample.append(X[i][0])
 
         X_sample.sort()
-        dim = model_id * 120
+        dim = model_id * 32
         arr_mean = np.mean(X_sample)
         arr_var = np.var(X_sample)
         print(arr_mean, arr_var)
         print("%.8f" % arr_var)
-        pdf = norm.pdf(X_sample, arr_mean, arr_var)
         # print(X_sample)
-        ax2.hist(X_sample, bins=500, alpha=0.5)
+        plt.hist(X_sample, bins=100, alpha=0.2)
         print(arr_mean)
-        ax1.plot(X_sample, pdf, label=f'dim={dim}', alpha=0.85)
 
-    ax1.legend()
+    plt.legend()
     plt.show()

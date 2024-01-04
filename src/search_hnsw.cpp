@@ -93,7 +93,7 @@ static void test_approx(float *massQ, size_t vecsize, size_t qsize, Hierarchical
 
     cout << appr_alg.ef_ << " " << recall * 100.0 << " " << time_us_per_query << " "
          << adsampling::tot_dimension + adsampling::tot_full_dist * vecdim << endl;
-    outer_recall = recall *100;
+    outer_recall = recall * 100;
     return;
 }
 
@@ -144,12 +144,12 @@ int main(int argc, char *argv[]) {
     char dataset[256] = "";
     char transformation_path[256] = "";
     int randomize = 0;
-    char codebook_path[256] = "";
+    char square_path[256] = "";
     char linear_path[256] = "";
     int subk = 100;
 
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "d:i:q:g:r:t:n:k:e:p:b:l:s:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:k:e:p:i:q:g:r:t:p:v:s:", longopts, &ind);
         switch (iarg) {
             case 'd':
                 if (optarg)randomize = atoi(optarg);
@@ -178,14 +178,8 @@ int main(int argc, char *argv[]) {
             case 't':
                 if (optarg)strcpy(transformation_path, optarg);
                 break;
-            case 'n':
-                if (optarg)strcpy(dataset, optarg);
-                break;
-            case 'b':
-                if (optarg)strcpy(codebook_path, optarg);
-                break;
-            case 'l':
-                if (optarg)strcpy(linear_path, optarg);
+            case 'v':
+                if (optarg)strcpy(square_path, optarg);
                 break;
             case 's':
                 if (optarg) efSearch = atoi(optarg);
@@ -198,39 +192,26 @@ int main(int argc, char *argv[]) {
     L2Space l2space(Q.d);
     HierarchicalNSW<float> *appr_alg = new HierarchicalNSW<float>(&l2space, index_path, false);
 
-    if (1<=randomize&&randomize<=2) {
+    if (1 <= randomize && randomize <= 2) {
         Matrix<float> P(transformation_path);
         StopW stopw = StopW();
         Q = mul(Q, P);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         adsampling::D = Q.d;
-    }else if(3<=randomize&&randomize<=6){
-        std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
-        auto PQ = new Index_PQ::Quantizer(appr_alg->cur_element_count, Q.d);
-        PQ->load_product_codebook(codebook_path);
-        PQ->load_project_matrix(transformation_path);
-        auto L = new Linear::Linear(Q.d);
-        L->load_linear_model(linear_path);
-        appr_alg->L = L;
-        appr_alg->PQ = PQ;
-        appr_alg->encoder_origin_data();
-        StopW stopw = StopW();
-        PQ->project_vector(Q.data, Q.n);
-        rotation_time = stopw.getElapsedTimeMicro() / Q.n;
-        adsampling::D = Q.d;
-        std::cerr << "rotate time:: " << rotation_time << endl;
-    }else if(7<=randomize&&randomize<=8){
+    } else if (7 <= randomize && randomize <= 8) {
         std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
         auto PCA = new Index_PCA::PCA(appr_alg->cur_element_count, Q.d);
+        PCA->sigma_count = 8;
+        PCA->base_dim = 32;
         PCA->load_project_matrix(transformation_path);
+        PCA->load_base_square(square_path);
+        appr_alg->PCA = PCA;
+        appr_alg->PCA->dimension_ = Q.d;
+        appr_alg->reorder_square();
+        if (randomize == 7) appr_alg->reorganized_data_aligned();
         StopW stopw = StopW();
         PCA->project_vector(Q.data, Q.n);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
-        auto L = new Linear::Linear(Q.d);
-        L->load_linear_model(linear_path);
-        appr_alg->PCA = PCA;
-        appr_alg->PCA->proj_dim = Q.d;
-        appr_alg->L = L;
         std::cerr << "rotate time:: " << rotation_time << endl;
     }
     freopen(result_path, "a", stdout);

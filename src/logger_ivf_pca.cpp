@@ -5,7 +5,6 @@
 
 #include <iostream>
 #include <fstream>
-#include "pq.h"
 #include "pca.h"
 #include <ctime>
 #include <cmath>
@@ -14,7 +13,6 @@
 #include <ivf/ivf.h>
 #include <adsampling.h>
 #include <getopt.h>
-#include "linear.h"
 
 using namespace std;
 
@@ -163,12 +161,12 @@ int main(int argc, char *argv[]) {
             unsigned L1_id = id_to_L1[gt[j]];
             float acc_dist = naive_l2_dist_calc(q, ivf.res_data + L1_id * Q.d, Q.d);
             float app_dist = 0;
+            float res_dist = 0;
             unsigned app_count = 0;
             auto *p = (float *) ivf.res_data + L1_id * Q.d;
             for (unsigned k = 0; k < Q.d; k += sub_dim) {
-                if (k + sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d % sub_dim);
-                else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
-                app[app_count].push_back(app_dist);
+                res_dist = -2 * naive_lp_dist_calc(q + k, p + k, (Q.d - k));
+                app[app_count].push_back(res_dist);
                 app_count++;
             }
             acc.push_back(acc_dist);
@@ -187,13 +185,12 @@ int main(int argc, char *argv[]) {
             unsigned L1_id = get<0>(u);
             if (KNNmap[L1_id]) continue;
             float node_dist = get<1>(u);
-            float app_dist = 0;
+            float res_dist = 0;
             unsigned app_count = 0;
             float *p = ivf.res_data + L1_id * Q.d;
             for (unsigned k = 0; k < Q.d; k += sub_dim) {
-                if (k + sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d % sub_dim);
-                else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
-                app[app_count].push_back(app_dist);
+                res_dist = -2 * naive_lp_dist_calc(q + k, p + k, (Q.d - k));
+                app[app_count].push_back(res_dist);
                 app_count++;
             }
             acc.push_back(node_dist);
@@ -231,23 +228,5 @@ int main(int argc, char *argv[]) {
     }
     out.close();
 
-    double exp_recall = 1.0 - (1.0 - recall) / (model_count - 1.0);
-    std::cerr << "save finished with recall:: " << recall << " " << exp_recall << endl;
-    if (isFileExists_ifstream((linear_path))) {
-        Linear::Linear L(ivf.D);
-        L.count_base = count_bound * subk;
-        L.load_linear_model(linear_path);
-        std::ofstream fout(linear_path);
-        fout.setf(ios::fixed, ios::floatfield);
-        fout.precision(6);
-        fout << L.model_count << endl;
-        for (int i = 0; i < L.model_count; i++) {
-            std::cerr << exp_recall << endl;
-            L.recall = exp_recall;
-            if (i == L.model_count - 1) L.recall = 1;
-            L.binary_search_single_linear(acc.size(), app[i].data(), acc.data(), thresh.data(), i);
-            fout << L.W_[i] << " " << L.B_[i]<< " "<<L.b_[i] << endl;
-        }
-    }
     return 0;
 }

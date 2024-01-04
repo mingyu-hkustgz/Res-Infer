@@ -247,7 +247,7 @@ __attribute__((always_inline))
 inline float naive_lp_dist_calc(const float *p, const float *q, const unsigned dim) {
     float ans = 0;
     for (unsigned i = 0; i < dim; i++) {
-        ans += (p[i]*q[i]);
+        ans += (p[i] * q[i]);
     }
     return ans;
 }
@@ -280,9 +280,9 @@ bool isFileExists_ifstream(const char *name) {
 }
 
 __attribute__((always_inline))
-float sqr_dist(float* a, float* b, int D){
+float sqr_dist(float *a, float *b, int D) {
 #if defined(USE_SSE)
-    return sse_l2_dist_calc(a,b,D);
+    return sse_l2_dist_calc(a, b, D);
 #else
     return naive_l2_dist_calc(a,b,D);
 #endif

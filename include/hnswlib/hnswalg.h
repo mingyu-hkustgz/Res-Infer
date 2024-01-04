@@ -27,9 +27,7 @@ We have included detailed comments in these functions.
 #include <assert.h>
 #include <unordered_set>
 #include <list>
-#include "pq.h"
 #include "pca.h"
-#include "linear.h"
 
 using namespace std;
 
@@ -41,15 +39,19 @@ namespace hnswlib {
     class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     public:
         static const tableint max_update_element_locks = 65536;
+
         HierarchicalNSW(SpaceInterface<dist_t> *s) {
         }
 
-        HierarchicalNSW(SpaceInterface<dist_t> *s, const std::string &location, bool nmslib = false, size_t max_elements=0) {
+        HierarchicalNSW(SpaceInterface<dist_t> *s, const std::string &location, bool nmslib = false,
+                        size_t max_elements = 0) {
             loadIndex(location, s, max_elements);
         }
 
-        HierarchicalNSW(SpaceInterface<dist_t> *s, size_t max_elements, size_t M = 16, size_t ef_construction = 200, size_t random_seed = 100) :
-                link_list_locks_(max_elements), link_list_update_locks_(max_update_element_locks), element_levels_(max_elements) {
+        HierarchicalNSW(SpaceInterface<dist_t> *s, size_t max_elements, size_t M = 16, size_t ef_construction = 200,
+                        size_t random_seed = 100) :
+                link_list_locks_(max_elements), link_list_update_locks_(max_update_element_locks),
+                element_levels_(max_elements) {
             max_elements_ = max_elements;
 
             num_deleted_ = 0;
@@ -59,7 +61,7 @@ namespace hnswlib {
             M_ = M;
             maxM_ = M_;
             maxM0_ = M_ * 2;
-            ef_construction_ = std::max(ef_construction,M_);
+            ef_construction_ = std::max(ef_construction, M_);
             ef_ = 10;
 
             level_generator_.seed(random_seed);
@@ -136,6 +138,8 @@ namespace hnswlib {
 
         size_t size_links_level0_;
         size_t offsetData_, offsetLevel0_;
+        //aligned square with data
+        size_t offsetSquare_;
 
         char *data_level0_memory_;
         char **linkLists_;
@@ -152,22 +156,26 @@ namespace hnswlib {
         std::default_random_engine update_probability_generator_;
 
         // Learn-to-Prune
-        Index_PQ::Quantizer* PQ = NULL;
-        Index_PCA::PCA* PCA = NULL;
-        Linear::Linear* L;
+        Index_PCA::PCA *PCA = NULL;
 
         inline labeltype getExternalLabel(tableint internal_id) const {
             labeltype return_label;
-            memcpy(&return_label,(data_level0_memory_ + internal_id * size_data_per_element_ + label_offset_), sizeof(labeltype));
+            memcpy(&return_label, (data_level0_memory_ + internal_id * size_data_per_element_ + label_offset_),
+                   sizeof(labeltype));
             return return_label;
         }
 
         inline void setExternalLabel(tableint internal_id, labeltype label) const {
-            memcpy((data_level0_memory_ + internal_id * size_data_per_element_ + label_offset_), &label, sizeof(labeltype));
+            memcpy((data_level0_memory_ + internal_id * size_data_per_element_ + label_offset_), &label,
+                   sizeof(labeltype));
+        }
+
+        inline char *get_pre_square(tableint internal_id) const {
+            return (data_level0_memory_ + internal_id * size_data_per_element_ + offsetSquare_);
         }
 
         inline labeltype *getExternalLabeLp(tableint internal_id) const {
-            return (labeltype *) (data_level0_memory_ + internal_id * size_data_per_element_ + label_offset_);
+            return (labeltype * )(data_level0_memory_ + internal_id * size_data_per_element_ + label_offset_);
         }
 
         inline char *getDataByInternalId(tableint internal_id) const {
@@ -213,17 +221,17 @@ namespace hnswlib {
 
                 tableint curNodeNum = curr_el_pair.second;
 
-                std::unique_lock <std::mutex> lock(link_list_locks_[curNodeNum]);
+                std::unique_lock<std::mutex> lock(link_list_locks_[curNodeNum]);
 
                 int *data;// = (int *)(linkList0_ + curNodeNum * size_links_per_element0_);
                 if (layer == 0) {
-                    data = (int*)get_linklist0(curNodeNum);
+                    data = (int *) get_linklist0(curNodeNum);
                 } else {
-                    data = (int*)get_linklist(curNodeNum, layer);
+                    data = (int *) get_linklist(curNodeNum, layer);
 //                    data = (int *) (linkLists_[curNodeNum] + (layer - 1) * size_links_per_element_);
                 }
-                size_t size = getListCount((linklistsizeint*)data);
-                tableint *datal = (tableint *) (data + 1);
+                size_t size = getListCount((linklistsizeint *) data);
+                tableint *datal = (tableint * )(data + 1);
 #ifdef USE_SSE
                 _mm_prefetch((char *) (visited_array + *(data + 1)), _MM_HINT_T0);
                 _mm_prefetch((char *) (visited_array + *(data + 1) + 64), _MM_HINT_T0);
@@ -268,7 +276,7 @@ namespace hnswlib {
         mutable std::atomic<long> metric_distance_computations;
         mutable std::atomic<long> metric_hops;
 
-        template <bool has_deletions, bool collect_metrics=false>
+        template<bool has_deletions, bool collect_metrics = false>
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
         searchBaseLayerST(tableint ep_id, const void *data_point, size_t ef) const {
             VisitedList *vl = visited_list_pool_->getFreeVisitedList();
@@ -289,14 +297,13 @@ namespace hnswlib {
                 dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
 #ifdef COUNT_DIST_TIME
                 adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif          
+#endif
                 adsampling::tot_dist_calculation++;
-                adsampling::tot_full_dist ++;
+                adsampling::tot_full_dist++;
                 lowerBound = dist;
                 top_candidates.emplace(dist, ep_id);
                 candidate_set.emplace(-dist, ep_id);
-            } 
-            else {
+            } else {
                 lowerBound = std::numeric_limits<dist_t>::max();
                 candidate_set.emplace(-lowerBound, ep_id);
             }
@@ -309,7 +316,8 @@ namespace hnswlib {
                 std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
 
                 // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
-                if ((-current_node_pair.first) > lowerBound && (top_candidates.size() == ef || has_deletions == false)) {
+                if ((-current_node_pair.first) > lowerBound &&
+                    (top_candidates.size() == ef || has_deletions == false)) {
                     break;
                 }
                 candidate_set.pop();
@@ -317,17 +325,17 @@ namespace hnswlib {
                 // Fetch the smallest object in S. 
                 tableint current_node_id = current_node_pair.second;
                 int *data = (int *) get_linklist0(current_node_id);
-                size_t size = getListCount((linklistsizeint*)data);
-                if(collect_metrics){
+                size_t size = getListCount((linklistsizeint *) data);
+                if (collect_metrics) {
                     metric_hops++;
-                    metric_distance_computations+=size;
+                    metric_distance_computations += size;
                 }
 
                 // Enumerate all the neighbors of the object and view them as candidates of KNNs. 
                 for (size_t j = 1; j <= size; j++) {
                     int candidate_id = *(data + j);
                     if (!(visited_array[candidate_id] == visited_array_tag)) {
-                        cnt_visit ++;
+                        cnt_visit++;
                         visited_array[candidate_id] = visited_array_tag;
 
                         // Conduct DCO with FDScanning wrt the N_ef th NN: 
@@ -340,9 +348,9 @@ namespace hnswlib {
                         dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
 #ifdef COUNT_DIST_TIME
                         adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif                  
-                        adsampling::tot_full_dist ++;
-                        if (top_candidates.size() < ef || lowerBound > dist) {                      
+#endif
+                        adsampling::tot_full_dist++;
+                        if (top_candidates.size() < ef || lowerBound > dist) {
                             candidate_set.emplace(-dist, candidate_id);
                             if (!has_deletions || !isMarkedDeleted(candidate_id))
                                 top_candidates.emplace(dist, candidate_id);
@@ -361,7 +369,7 @@ namespace hnswlib {
             return top_candidates;
         }
 
-        template <bool has_deletions, bool collect_metrics=false>
+        template<bool has_deletions, bool collect_metrics = false>
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
         searchBaseLayerAD(tableint ep_id, const void *data_point, size_t ef) const {
             VisitedList *vl = visited_list_pool_->getFreeVisitedList();
@@ -382,14 +390,13 @@ namespace hnswlib {
                 dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
 #ifdef COUNT_DIST_TIME
                 adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif          
+#endif
                 adsampling::tot_dist_calculation++;
-                adsampling::tot_full_dist ++;
+                adsampling::tot_full_dist++;
                 lowerBound = dist;
                 top_candidates.emplace(dist, ep_id);
                 candidate_set.emplace(-dist, ep_id);
-            } 
-            else {
+            } else {
                 lowerBound = std::numeric_limits<dist_t>::max();
                 candidate_set.emplace(-lowerBound, ep_id);
             }
@@ -400,9 +407,10 @@ namespace hnswlib {
             // Iteratively generate candidates and conduct DCOs to maintain the result set R.
             while (!candidate_set.empty()) {
                 std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
-                
+
                 // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
-                if ((-current_node_pair.first) > lowerBound && (top_candidates.size() == ef || has_deletions == false)) {
+                if ((-current_node_pair.first) > lowerBound &&
+                    (top_candidates.size() == ef || has_deletions == false)) {
                     break;
                 }
                 candidate_set.pop();
@@ -410,30 +418,30 @@ namespace hnswlib {
                 // Fetch the smallest object in S. 
                 tableint current_node_id = current_node_pair.second;
                 int *data = (int *) get_linklist0(current_node_id);
-                size_t size = getListCount((linklistsizeint*)data);
-                if(collect_metrics){
+                size_t size = getListCount((linklistsizeint *) data);
+                if (collect_metrics) {
                     metric_hops++;
-                    metric_distance_computations+=size;
+                    metric_distance_computations += size;
                 }
 
                 // Enumerate all the neighbors of the object and view them as candidates of KNNs. 
                 for (size_t j = 1; j <= size; j++) {
                     int candidate_id = *(data + j);
                     if (!(visited_array[candidate_id] == visited_array_tag)) {
-                        cnt_visit ++;
+                        cnt_visit++;
                         visited_array[candidate_id] = visited_array_tag;
 
                         // If the result set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
-                        if (top_candidates.size() < ef){
+                        if (top_candidates.size() < ef) {
                             char *currObj1 = (getDataByInternalId(candidate_id));
 #ifdef COUNT_DIST_TIME
                             StopW stopw = StopW();
 #endif
-                            dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);    
+                            dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
 #ifdef COUNT_DIST_TIME
                             adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif                                         
-                            adsampling::tot_full_dist ++;
+#endif
+                            adsampling::tot_full_dist++;
                             if (!has_deletions || !isMarkedDeleted(candidate_id))
                                 candidate_set.emplace(-dist, candidate_id);
                             if (!has_deletions || !isMarkedDeleted(candidate_id))
@@ -441,16 +449,17 @@ namespace hnswlib {
                             if (!top_candidates.empty())
                                 lowerBound = top_candidates.top().first;
                         }
-                        // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN. 
+                            // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
                         else {
 #ifdef COUNT_DIST_TIME
                             StopW stopw = StopW();
 #endif
-                            dist_t dist = adsampling::dist_comp(lowerBound, getDataByInternalId(candidate_id), data_point, 0, 0);
+                            dist_t dist = adsampling::dist_comp(lowerBound, getDataByInternalId(candidate_id),
+                                                                data_point, 0, 0);
 #ifdef COUNT_DIST_TIME
                             adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif                               
-                            if(dist >= 0){
+#endif
+                            if (dist >= 0) {
                                 candidate_set.emplace(-dist, candidate_id);
                                 if (!has_deletions || !isMarkedDeleted(candidate_id))
                                     top_candidates.emplace(dist, candidate_id);
@@ -468,7 +477,7 @@ namespace hnswlib {
             return top_candidates;
         }
 
-        template <bool has_deletions, bool collect_metrics=false>
+        template<bool has_deletions, bool collect_metrics = false>
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
         searchBaseLayerADstar(tableint ep_id, const void *data_point, size_t ef, size_t k) const {
             VisitedList *vl = visited_list_pool_->getFreeVisitedList();
@@ -481,27 +490,26 @@ namespace hnswlib {
             std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
             // candidate_set  - the search set S
             std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
-            
+
             dist_t lowerBound;
             dist_t lowerBoundcan;
             // Insert the entry point to the result and search set with its exact distance as a key. 
             if (!has_deletions || !isMarkedDeleted(ep_id)) {
 #ifdef COUNT_DIST_TIME
                 StopW stopw = StopW();
-#endif                   
+#endif
                 dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
 #ifdef COUNT_DIST_TIME
                 adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif          
-                adsampling::tot_dist_calculation++;          
-                adsampling::tot_full_dist ++;
+#endif
+                adsampling::tot_dist_calculation++;
+                adsampling::tot_full_dist++;
                 lowerBound = dist;
                 lowerBoundcan = dist;
                 answers.emplace(dist, ep_id);
                 top_candidates.emplace(dist, ep_id);
                 candidate_set.emplace(-dist, ep_id);
-            } 
-            else {
+            } else {
                 lowerBound = std::numeric_limits<dist_t>::max();
                 lowerBoundcan = std::numeric_limits<dist_t>::max();
                 candidate_set.emplace(-lowerBound, ep_id);
@@ -514,7 +522,8 @@ namespace hnswlib {
                 std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
 
                 // When the smallest object in S has its distance larger than the largest in R2, terminate the algorithm.
-                if ((-current_node_pair.first) > top_candidates.top().first && (top_candidates.size() == ef || has_deletions == false)) {
+                if ((-current_node_pair.first) > top_candidates.top().first &&
+                    (top_candidates.size() == ef || has_deletions == false)) {
                     break;
                 }
                 candidate_set.pop();
@@ -522,10 +531,10 @@ namespace hnswlib {
                 // Fetch the smallest object in S. 
                 tableint current_node_id = current_node_pair.second;
                 int *data = (int *) get_linklist0(current_node_id);
-                size_t size = getListCount((linklistsizeint*)data);
-                if(collect_metrics){
+                size_t size = getListCount((linklistsizeint *) data);
+                if (collect_metrics) {
                     metric_hops++;
-                    metric_distance_computations+=size;
+                    metric_distance_computations += size;
                 }
 
 
@@ -533,22 +542,22 @@ namespace hnswlib {
                 for (size_t j = 1; j <= size; j++) {
                     int candidate_id = *(data + j);
                     if (!(visited_array[candidate_id] == visited_array_tag)) {
-                        cnt_visit ++;
+                        cnt_visit++;
                         visited_array[candidate_id] = visited_array_tag;
 
 
                         // If the KNN set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
-                        if (answers.size() < k){
+                        if (answers.size() < k) {
                             char *currObj1 = (getDataByInternalId(candidate_id));
 #ifdef COUNT_DIST_TIME
                             StopW stopw = StopW();
-#endif                            
-                            dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);    
+#endif
+                            dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
 #ifdef COUNT_DIST_TIME
                             adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif                             
-                            adsampling::tot_full_dist ++;
-                            if (!has_deletions || !isMarkedDeleted(candidate_id)){
+#endif
+                            adsampling::tot_full_dist++;
+                            if (!has_deletions || !isMarkedDeleted(candidate_id)) {
                                 candidate_set.emplace(-dist, candidate_id);
                                 top_candidates.emplace(dist, candidate_id);
                                 answers.emplace(dist, candidate_id);
@@ -558,26 +567,26 @@ namespace hnswlib {
                             if (!top_candidates.empty())
                                 lowerBoundcan = top_candidates.top().first;
                         }
-                        // Otherwise, conduct DCO with ADSampling wrt the Kth NN. 
+                            // Otherwise, conduct DCO with ADSampling wrt the Kth NN.
                         else {
                             char *currObj1 = (getDataByInternalId(candidate_id));
 #ifdef COUNT_DIST_TIME
                             StopW stopw = StopW();
-#endif                            
+#endif
                             dist_t dist = adsampling::dist_comp(lowerBound, currObj1, data_point, 0, 0);
 #ifdef COUNT_DIST_TIME
                             adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif                              
+#endif
                             // If it's a positive object, then include it in R1, R2, S. 
-                            if(dist >= 0){
+                            if (dist >= 0) {
                                 candidate_set.emplace(-dist, candidate_id);
-                                if(!has_deletions || !isMarkedDeleted(candidate_id)){
+                                if (!has_deletions || !isMarkedDeleted(candidate_id)) {
                                     top_candidates.emplace(dist, candidate_id);
                                     answers.emplace(dist, candidate_id);
                                 }
-                                if(top_candidates.size() > ef)
+                                if (top_candidates.size() > ef)
                                     top_candidates.pop();
-                                if(answers.size() > k)
+                                if (answers.size() > k)
                                     answers.pop();
 
                                 if (!answers.empty())
@@ -585,13 +594,13 @@ namespace hnswlib {
                                 if (!top_candidates.empty())
                                     lowerBoundcan = top_candidates.top().first;
                             }
-                            // If it's a negative object, then update R2, S with the approximate distance.
-                            else{
-                                if(top_candidates.size() < ef || lowerBoundcan > -dist){
+                                // If it's a negative object, then update R2, S with the approximate distance.
+                            else {
+                                if (top_candidates.size() < ef || lowerBoundcan > -dist) {
                                     top_candidates.emplace(-dist, candidate_id);
                                     candidate_set.emplace(dist, candidate_id);
                                 }
-                                if(top_candidates.size() > ef){
+                                if (top_candidates.size() > ef) {
                                     top_candidates.pop();
                                 }
                                 if (!top_candidates.empty())
@@ -606,10 +615,10 @@ namespace hnswlib {
             return answers;
         }
 
-        template <bool has_deletions, bool collect_metrics=false>
-        std::vector<std::tuple<unsigned ,float,float> >
-        searchBaseLayerlogger(tableint ep_id, const void *data_point, size_t ef, size_t k,int adaptive = 0) const {
-            std::vector<std::tuple<unsigned ,float,float> > logger;
+        template<bool has_deletions, bool collect_metrics = false>
+        std::vector<std::tuple<unsigned, float, float> >
+        searchBaseLayerlogger(tableint ep_id, const void *data_point, size_t ef, size_t k, int adaptive = 0) const {
+            std::vector<std::tuple<unsigned, float, float> > logger;
             VisitedList *vl = visited_list_pool_->getFreeVisitedList();
             vl_type *visited_array = vl->mass;
             vl_type visited_array_tag = vl->curV;
@@ -632,13 +641,12 @@ namespace hnswlib {
                 adsampling::distance_time += stopw.getElapsedTimeMicro();
 #endif
                 adsampling::tot_dist_calculation++;
-                adsampling::tot_full_dist ++;
+                adsampling::tot_full_dist++;
                 lowerBound = dist;
                 top_candidates.emplace(dist, ep_id);
-                result_k.emplace(dist,ep_id);
+                result_k.emplace(dist, ep_id);
                 candidate_set.emplace(-dist, ep_id);
-            }
-            else {
+            } else {
                 lowerBound = std::numeric_limits<dist_t>::max();
                 candidate_set.emplace(-lowerBound, ep_id);
             }
@@ -651,7 +659,8 @@ namespace hnswlib {
                 std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
 
                 // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
-                if ((-current_node_pair.first) > lowerBound && (top_candidates.size() == ef || has_deletions == false)) {
+                if ((-current_node_pair.first) > lowerBound &&
+                    (top_candidates.size() == ef || has_deletions == false)) {
                     break;
                 }
                 candidate_set.pop();
@@ -659,17 +668,17 @@ namespace hnswlib {
                 // Fetch the smallest object in S.
                 tableint current_node_id = current_node_pair.second;
                 int *data = (int *) get_linklist0(current_node_id);
-                size_t size = getListCount((linklistsizeint*)data);
-                if(collect_metrics){
+                size_t size = getListCount((linklistsizeint *) data);
+                if (collect_metrics) {
                     metric_hops++;
-                    metric_distance_computations+=size;
+                    metric_distance_computations += size;
                 }
 
                 // Enumerate all the neighbors of the object and view them as candidates of KNNs.
                 for (size_t j = 1; j <= size; j++) {
                     int candidate_id = *(data + j);
                     if (!(visited_array[candidate_id] == visited_array_tag)) {
-                        cnt_visit ++;
+                        cnt_visit++;
                         visited_array[candidate_id] = visited_array_tag;
 
                         // Conduct DCO with FDScanning wrt the N_ef th NN:
@@ -677,15 +686,16 @@ namespace hnswlib {
                         // (2) compare it with the N_ef th distance (i.e., lowerBound)
                         char *currObj1 = (getDataByInternalId(candidate_id));
                         dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-                        if(adaptive==1 && result_k.size()==k) logger.emplace_back(candidate_id, dist, result_k.top().first);
-                        else if(adaptive==2 && top_candidates.size() == ef) logger.emplace_back(candidate_id, dist, top_candidates.top().first);
+                        if (adaptive == 1 && result_k.size() == k)
+                            logger.emplace_back(candidate_id, dist, result_k.top().first);
+                        else if (adaptive == 2 && top_candidates.size() == ef)
+                            logger.emplace_back(candidate_id, dist, top_candidates.top().first);
 
                         if (top_candidates.size() < ef || lowerBound > dist) {
                             candidate_set.emplace(-dist, candidate_id);
-                            if (!has_deletions || !isMarkedDeleted(candidate_id))
-                            {
+                            if (!has_deletions || !isMarkedDeleted(candidate_id)) {
                                 top_candidates.emplace(dist, candidate_id);
-                                result_k.emplace(dist,candidate_id);
+                                result_k.emplace(dist, candidate_id);
                             }
 
                             if (top_candidates.size() > ef)
@@ -704,121 +714,9 @@ namespace hnswlib {
             return logger;
         }
 
-        template <bool has_deletions, bool collect_metrics=false>
+        template<bool has_deletions, bool collect_metrics = false>
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
-        searchBaseLayerPQ(tableint ep_id, const void *data_point, size_t ef) const {
-            VisitedList *vl = visited_list_pool_->getFreeVisitedList();
-            vl_type *visited_array = vl->mass;
-            vl_type visited_array_tag = vl->curV;
-
-            // top_candidates - the result set R
-            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
-            // candidate_set  - the search set S
-            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
-
-            dist_t lowerBound;
-            // Insert the entry point to the result and search set with its exact distance as a key.
-            if (!has_deletions || !isMarkedDeleted(ep_id)) {
-#ifdef COUNT_DIST_TIME
-                StopW stopw = StopW();
-#endif
-                dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
-                adsampling::tot_dist_calculation++;
-                adsampling::tot_full_dist ++;
-                lowerBound = dist;
-                top_candidates.emplace(dist, ep_id);
-                candidate_set.emplace(-dist, ep_id);
-            }
-            else {
-                lowerBound = std::numeric_limits<dist_t>::max();
-                candidate_set.emplace(-lowerBound, ep_id);
-            }
-
-            visited_array[ep_id] = visited_array_tag;
-            int cnt_visit = 0;
-
-            // Iteratively generate candidates and conduct DCOs to maintain the result set R.
-            while (!candidate_set.empty()) {
-                std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
-
-                // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
-                if ((-current_node_pair.first) > lowerBound && (top_candidates.size() == ef || has_deletions == false)) {
-                    break;
-                }
-                candidate_set.pop();
-
-                // Fetch the smallest object in S.
-                tableint current_node_id = current_node_pair.second;
-                int *data = (int *) get_linklist0(current_node_id);
-                size_t size = getListCount((linklistsizeint*)data);
-                if(collect_metrics){
-                    metric_hops++;
-                    metric_distance_computations+=size;
-                }
-
-                // Enumerate all the neighbors of the object and view them as candidates of KNNs.
-                for (size_t j = 1; j <= size; j++) {
-                    int candidate_id = *(data + j);
-                    if (!(visited_array[candidate_id] == visited_array_tag)) {
-                        cnt_visit ++;
-                        visited_array[candidate_id] = visited_array_tag;
-
-                        // If the result set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
-                        if (top_candidates.size() < ef){
-                            char *currObj1 = (getDataByInternalId(candidate_id));
-#ifdef COUNT_DIST_TIME
-                            StopW stopw = StopW();
-#endif
-                            dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                            adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
-                            adsampling::tot_full_dist ++;
-                            if (!has_deletions || !isMarkedDeleted(candidate_id))
-                                candidate_set.emplace(-dist, candidate_id);
-                            if (!has_deletions || !isMarkedDeleted(candidate_id))
-                                top_candidates.emplace(dist, candidate_id);
-                            if (!top_candidates.empty())
-                                lowerBound = top_candidates.top().first;
-                        }
-                            // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
-                        else {
-                            char *currObj1 = (getDataByInternalId(candidate_id));
-#ifdef COUNT_DIST_TIME
-                            StopW stopw = StopW();
-#endif
-                            dist_t dist = PQ->naive_product_map_dist(candidate_id);
-                            if(L->linear_classifier_default_pq(dist, PQ->node_cluster_dist_[candidate_id],lowerBound)) continue;
-                            else dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                            adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
-                            if (top_candidates.size() < ef || lowerBound > dist) {
-                                candidate_set.emplace(-dist, candidate_id);
-                                if (!has_deletions || !isMarkedDeleted(candidate_id))
-                                    top_candidates.emplace(dist, candidate_id);
-
-                                if (top_candidates.size() > ef)
-                                    top_candidates.pop();
-
-                                if (!top_candidates.empty())
-                                    lowerBound = top_candidates.top().first;
-                            }
-                        }
-                    }
-                }
-            }
-            adsampling::tot_dist_calculation += cnt_visit;
-            visited_list_pool_->releaseVisitedList(vl);
-            return top_candidates;
-        }
-
-        template <bool has_deletions, bool collect_metrics=false>
-        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
-        searchBaseLayerPQstar(tableint ep_id, const void *data_point, size_t ef,size_t k) const {
+        searchBaseLayerPCAplus(tableint ep_id, const void *data_point, size_t ef, size_t k) const {
             VisitedList *vl = visited_list_pool_->getFreeVisitedList();
             vl_type *visited_array = vl->mass;
             vl_type visited_array_tag = vl->curV;
@@ -834,33 +732,27 @@ namespace hnswlib {
             dist_t lowerBoundcan;
             // Insert the entry point to the result and search set with its exact distance as a key.
             if (!has_deletions || !isMarkedDeleted(ep_id)) {
-#ifdef COUNT_DIST_TIME
-                StopW stopw = StopW();
-#endif
                 dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
                 lowerBound = dist;
                 lowerBoundcan = dist;
                 answers.emplace(dist, ep_id);
                 top_candidates.emplace(dist, ep_id);
                 candidate_set.emplace(-dist, ep_id);
-            }
-            else {
+            } else {
                 lowerBound = std::numeric_limits<dist_t>::max();
                 lowerBoundcan = std::numeric_limits<dist_t>::max();
                 candidate_set.emplace(-lowerBound, ep_id);
             }
 
             visited_array[ep_id] = visited_array_tag;
-
-            // Iteratively generate candidates and conduct DCOs to maintain the result set R.
+            int cnt_visit = 0;
+            // Iteratively generate candidates.
             while (!candidate_set.empty()) {
                 std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
 
-                // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
-                if ((-current_node_pair.first) > top_candidates.top().first && (top_candidates.size() == ef || has_deletions == false)) {
+                // When the smallest object in S has its distance larger than the largest in R2, terminate the algorithm.
+                if ((-current_node_pair.first) > top_candidates.top().first &&
+                    (top_candidates.size() == ef || has_deletions == false)) {
                     break;
                 }
                 candidate_set.pop();
@@ -868,10 +760,10 @@ namespace hnswlib {
                 // Fetch the smallest object in S.
                 tableint current_node_id = current_node_pair.second;
                 int *data = (int *) get_linklist0(current_node_id);
-                size_t size = getListCount((linklistsizeint*)data);
-                if(collect_metrics){
+                size_t size = getListCount((linklistsizeint *) data);
+                if (collect_metrics) {
                     metric_hops++;
-                    metric_distance_computations+=size;
+                    metric_distance_computations += size;
                 }
 
 
@@ -879,19 +771,15 @@ namespace hnswlib {
                 for (size_t j = 1; j <= size; j++) {
                     int candidate_id = *(data + j);
                     if (!(visited_array[candidate_id] == visited_array_tag)) {
+                        cnt_visit++;
                         visited_array[candidate_id] = visited_array_tag;
 
+
                         // If the KNN set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
-                        if (answers.size() < k){
+                        if (answers.size() < k) {
                             char *currObj1 = (getDataByInternalId(candidate_id));
-#ifdef COUNT_DIST_TIME
-                            StopW stopw = StopW();
-#endif
                             dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                            adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
-                            if (!has_deletions || !isMarkedDeleted(candidate_id)){
+                            if (!has_deletions || !isMarkedDeleted(candidate_id)) {
                                 candidate_set.emplace(-dist, candidate_id);
                                 top_candidates.emplace(dist, candidate_id);
                                 answers.emplace(dist, candidate_id);
@@ -901,30 +789,24 @@ namespace hnswlib {
                             if (!top_candidates.empty())
                                 lowerBoundcan = top_candidates.top().first;
                         }
+                            // Otherwise, conduct DCO with ADSampling wrt the Kth NN.
                         else {
+                            float pre_sum = ((float *) get_pre_square(candidate_id))[0] + PCA->query_square;
                             char *currObj1 = (getDataByInternalId(candidate_id));
-                            dist_t app_dist = PQ->naive_product_map_dist(candidate_id);
-                            if(L->linear_classifier_default_pq(app_dist,PQ->node_cluster_dist_[candidate_id],lowerBound)){
-                                if(top_candidates.size() < ef || lowerBoundcan > app_dist){
-                                    top_candidates.emplace(app_dist, candidate_id);
-                                    candidate_set.emplace(-app_dist, candidate_id);
-                                }
-                                if(top_candidates.size() > ef){
-                                    top_candidates.pop();
-                                }
-                                if (!top_candidates.empty())
-                                    lowerBoundcan = top_candidates.top().first;
-                            }
-                            else{
-                                dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+                            dist_t dist = PCA->uniform_fast_inference((float *) data_point,
+                                                                      (float *) getDataByInternalId(candidate_id),
+                                                                      lowerBound, 0, pre_sum);
+
+                            // If it's a positive object, then include it in R1, R2, S.
+                            if (dist >= 0) {
                                 candidate_set.emplace(-dist, candidate_id);
-                                if(!has_deletions || !isMarkedDeleted(candidate_id)){
+                                if (!has_deletions || !isMarkedDeleted(candidate_id)) {
                                     top_candidates.emplace(dist, candidate_id);
                                     answers.emplace(dist, candidate_id);
                                 }
-                                if(top_candidates.size() > ef)
+                                if (top_candidates.size() > ef)
                                     top_candidates.pop();
-                                if(answers.size() > k)
+                                if (answers.size() > k)
                                     answers.pop();
 
                                 if (!answers.empty())
@@ -932,344 +814,17 @@ namespace hnswlib {
                                 if (!top_candidates.empty())
                                     lowerBoundcan = top_candidates.top().first;
                             }
-                        }
-                    }
-                }
-            }
-            visited_list_pool_->releaseVisitedList(vl);
-            return answers;
-        }
-
-        template <bool has_deletions, bool collect_metrics=false>
-        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
-        searchBaseLayerPQsimd(tableint ep_id, const void *data_point, size_t ef) const {
-            VisitedList *vl = visited_list_pool_->getFreeVisitedList();
-            vl_type *visited_array = vl->mass;
-            vl_type visited_array_tag = vl->curV;
-
-            // top_candidates - the result set R
-            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
-            // candidate_set  - the search set S
-            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
-
-            dist_t lowerBound;
-            // Insert the entry point to the result and search set with its exact distance as a key.
-            if (!has_deletions || !isMarkedDeleted(ep_id)) {
-#ifdef COUNT_DIST_TIME
-                StopW stopw = StopW();
-#endif
-                dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
-                adsampling::tot_dist_calculation++;
-                adsampling::tot_full_dist ++;
-                lowerBound = dist;
-                top_candidates.emplace(dist, ep_id);
-                candidate_set.emplace(-dist, ep_id);
-            }
-            else {
-                lowerBound = std::numeric_limits<dist_t>::max();
-                candidate_set.emplace(-lowerBound, ep_id);
-            }
-
-            visited_array[ep_id] = visited_array_tag;
-            int cnt_visit = 0;
-
-            // Iteratively generate candidates and conduct DCOs to maintain the result set R.
-            while (!candidate_set.empty()) {
-                std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
-
-                // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
-                if ((-current_node_pair.first) > lowerBound && (top_candidates.size() == ef || has_deletions == false)) {
-                    break;
-                }
-                candidate_set.pop();
-
-                // Fetch the smallest object in S.
-                tableint current_node_id = current_node_pair.second;
-                int *data = (int *) get_linklist0(current_node_id);
-                size_t size = getListCount((linklistsizeint*)data);
-                if(collect_metrics){
-                    metric_hops++;
-                    metric_distance_computations+=size;
-                }
-
-                // Enumerate all the neighbors of the object and view them as candidates of KNNs.
-                std::vector<unsigned> ids;
-                int not_vis_count = 0;
-                for (size_t j = 1; j <= size; j++){
-                    int candidate_id = *(data + j);
-                    if (!(visited_array[candidate_id] == visited_array_tag)){
-                        not_vis_count ++;
-                        visited_array[candidate_id] = visited_array_tag;
-                        ids.push_back(candidate_id);
-                    }
-                }
-                cnt_visit += not_vis_count;
-                while(ids.size()%4!=0) ids.push_back(0);
-                auto res = PQ->sse4_dist_sacn(ids.data(),ids.size());
-
-                for (size_t j = 0; j < not_vis_count; j++) {
-                    int candidate_id = ids[j];
-                    // If the result set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
-                    if (top_candidates.size() < ef){
-                        char *currObj1 = (getDataByInternalId(candidate_id));
-#ifdef COUNT_DIST_TIME
-                        StopW stopw = StopW();
-#endif
-                        dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                        adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
-                        adsampling::tot_full_dist ++;
-                        if (!has_deletions || !isMarkedDeleted(candidate_id))
-                            candidate_set.emplace(-dist, candidate_id);
-                        if (!has_deletions || !isMarkedDeleted(candidate_id))
-                            top_candidates.emplace(dist, candidate_id);
-                        if (!top_candidates.empty())
-                            lowerBound = top_candidates.top().first;
-                    }
-                        // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
-                    else {
-                        char *currObj1 = (getDataByInternalId(candidate_id));
-#ifdef COUNT_DIST_TIME
-                        StopW stopw = StopW();
-#endif
-                        dist_t dist;
-                        if(L->linear_classifier_default_pq(res[j], PQ->node_cluster_dist_[candidate_id], lowerBound)) continue;
-                        else dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                        adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
-                        if (top_candidates.size() < ef || lowerBound > dist) {
-                            candidate_set.emplace(-dist, candidate_id);
-                            if (!has_deletions || !isMarkedDeleted(candidate_id))
-                                top_candidates.emplace(dist, candidate_id);
-
-                            if (top_candidates.size() > ef)
-                                top_candidates.pop();
-
-                            if (!top_candidates.empty())
-                                lowerBound = top_candidates.top().first;
-                        }
-                    }
-                }
-            }
-            adsampling::tot_dist_calculation += cnt_visit;
-            visited_list_pool_->releaseVisitedList(vl);
-            return top_candidates;
-        }
-
-
-        template <bool has_deletions, bool collect_metrics=false>
-        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
-        searchBaseLayerPQstarsimd(tableint ep_id, const void *data_point, size_t ef, size_t k) const {
-            VisitedList *vl = visited_list_pool_->getFreeVisitedList();
-            vl_type *visited_array = vl->mass;
-            vl_type visited_array_tag = vl->curV;
-            // answers        - the KNN set R1
-            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> answers;
-            // top_candidates - the result set R
-            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
-            // candidate_set  - the search set S
-            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
-
-            dist_t lowerBound;
-            dist_t lowerBoundcan;
-            // Insert the entry point to the result and search set with its exact distance as a key.
-            if (!has_deletions || !isMarkedDeleted(ep_id)) {
-#ifdef COUNT_DIST_TIME
-                StopW stopw = StopW();
-#endif
-                dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
-                lowerBound = dist;
-                lowerBoundcan = dist;
-                answers.emplace(dist, ep_id);
-                top_candidates.emplace(dist, ep_id);
-                candidate_set.emplace(-dist, ep_id);
-            }
-            else {
-                lowerBound = std::numeric_limits<dist_t>::max();
-                lowerBoundcan = std::numeric_limits<dist_t>::max();
-                candidate_set.emplace(-lowerBound, ep_id);
-            }
-
-            visited_array[ep_id] = visited_array_tag;
-
-            // Iteratively generate candidates and conduct DCOs to maintain the result set R.
-            while (!candidate_set.empty()) {
-                std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
-
-                // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
-                if ((-current_node_pair.first) > top_candidates.top().first && (top_candidates.size() == ef || has_deletions == false)) {
-                    break;
-                }
-                candidate_set.pop();
-
-                // Fetch the smallest object in S.
-                tableint current_node_id = current_node_pair.second;
-                int *data = (int *) get_linklist0(current_node_id);
-                size_t size = getListCount((linklistsizeint*)data);
-                if(collect_metrics){
-                    metric_hops++;
-                    metric_distance_computations+=size;
-                }
-
-                // Enumerate all the neighbors of the object and view them as candidates of KNNs.
-                std::vector<unsigned> ids;
-                int not_vis_count = 0;
-                for (size_t j = 1; j <= size; j++){
-                    int candidate_id = *(data + j);
-                    if (!(visited_array[candidate_id] == visited_array_tag)){
-                        not_vis_count ++;
-                        visited_array[candidate_id] = visited_array_tag;
-                        ids.push_back(candidate_id);
-                    }
-                }
-                while(ids.size()%4!=0) ids.push_back(0);
-                auto res = PQ->sse4_dist_sacn(ids.data(),ids.size());
-
-                for (size_t j = 0; j < not_vis_count; j++) {
-                    int candidate_id = ids[j];
-                    // If the result set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
-                    if (answers.size() < k){
-                        char *currObj1 = (getDataByInternalId(candidate_id));
-#ifdef COUNT_DIST_TIME
-                        StopW stopw = StopW();
-#endif
-                        dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                        adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
-                        if (!has_deletions || !isMarkedDeleted(candidate_id)){
-                            candidate_set.emplace(-dist, candidate_id);
-                            top_candidates.emplace(dist, candidate_id);
-                            answers.emplace(dist, candidate_id);
-                        }
-                        if (!answers.empty())
-                            lowerBound = answers.top().first;
-                        if (!top_candidates.empty())
-                            lowerBoundcan = top_candidates.top().first;
-                    }
-                        // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
-                    else {
-                        char *currObj1 = (getDataByInternalId(candidate_id));
-                        if(L->linear_classifier_default_pq(res[j], PQ->node_cluster_dist_[candidate_id], lowerBound)) {
-                            if(top_candidates.size() < ef || lowerBoundcan > res[j]){
-                                top_candidates.emplace(res[j], candidate_id);
-                                candidate_set.emplace(-res[j], candidate_id);
-                            }
-                            if(top_candidates.size() > ef){
-                                top_candidates.pop();
-                            }
-                            if (!top_candidates.empty())
-                                lowerBoundcan = top_candidates.top().first;
-                        }
-                        else{
-                            dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-                            candidate_set.emplace(-dist, candidate_id);
-                            if(!has_deletions || !isMarkedDeleted(candidate_id)){
-                                top_candidates.emplace(dist, candidate_id);
-                                answers.emplace(dist, candidate_id);
-                            }
-                            if(top_candidates.size() > ef)
-                                top_candidates.pop();
-                            if(answers.size() > k)
-                                answers.pop();
-
-                            if (!answers.empty())
-                                lowerBound = answers.top().first;
-                            if (!top_candidates.empty())
-                                lowerBoundcan = top_candidates.top().first;
-                        }
-                    }
-                }
-            }
-            visited_list_pool_->releaseVisitedList(vl);
-            return answers;
-        }
-
-        template <bool has_deletions, bool collect_metrics=false>
-        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
-        searchBaseLayerPCA(tableint ep_id, const void *data_point, size_t ef,size_t k) const {
-            VisitedList *vl = visited_list_pool_->getFreeVisitedList();
-            vl_type *visited_array = vl->mass;
-            vl_type visited_array_tag = vl->curV;
-
-            // top_candidates - the result set R
-            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
-            // candidate_set  - the search set S
-            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
-
-            dist_t lowerBound;
-            // Insert the entry point to the result and search set with its exact distance as a key.
-            if (!has_deletions || !isMarkedDeleted(ep_id)) {
-                dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
-                lowerBound = dist;
-                top_candidates.emplace(dist, ep_id);
-                candidate_set.emplace(-dist, ep_id);
-            }
-            else {
-                lowerBound = std::numeric_limits<dist_t>::max();
-                candidate_set.emplace(-lowerBound, ep_id);
-            }
-
-            visited_array[ep_id] = visited_array_tag;
-            int cnt_visit = 0;
-
-            // Iteratively generate candidates and conduct DCOs to maintain the result set R.
-            while (!candidate_set.empty()) {
-                std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
-
-                // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
-                if ((-current_node_pair.first) > lowerBound && (top_candidates.size() == ef || has_deletions == false)) {
-                    break;
-                }
-                candidate_set.pop();
-
-                // Fetch the smallest object in S.
-                tableint current_node_id = current_node_pair.second;
-                int *data = (int *) get_linklist0(current_node_id);
-                size_t size = getListCount((linklistsizeint*)data);
-                if(collect_metrics){
-                    metric_hops++;
-                    metric_distance_computations+=size;
-                }
-
-                // Enumerate all the neighbors of the object and view them as candidates of KNNs.
-                for (size_t j = 1; j <= size; j++) {
-                    int candidate_id = *(data + j);
-                    if (!(visited_array[candidate_id] == visited_array_tag)) {
-                        cnt_visit ++;
-                        visited_array[candidate_id] = visited_array_tag;
-
-                        // If the result set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
-                        if (top_candidates.size() < ef){
-                            char *currObj1 = (getDataByInternalId(candidate_id));
-
-                            dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-                            if (!has_deletions || !isMarkedDeleted(candidate_id))
-                                candidate_set.emplace(-dist, candidate_id);
-                            if (!has_deletions || !isMarkedDeleted(candidate_id))
-                                top_candidates.emplace(dist, candidate_id);
-                            if (!top_candidates.empty())
-                                lowerBound = top_candidates.top().first;
-                        }
-                            // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
-                        else {
-                            dist_t dist = L->multi_linear_classifier_((float*)data_point,(float*) getDataByInternalId(candidate_id), lowerBound);
-                            if(dist >= 0){
-                                candidate_set.emplace(-dist, candidate_id);
-                                if (!has_deletions || !isMarkedDeleted(candidate_id))
-                                    top_candidates.emplace(dist, candidate_id);
-                                if (top_candidates.size() > ef)
+                                // If it's a negative object, then update R2, S with the approximate distance.
+                            else {
+                                if (top_candidates.size() < ef || lowerBoundcan > -dist) {
+                                    top_candidates.emplace(-dist, candidate_id);
+                                    candidate_set.emplace(dist, candidate_id);
+                                }
+                                if (top_candidates.size() > ef) {
                                     top_candidates.pop();
+                                }
                                 if (!top_candidates.empty())
-                                    lowerBound = top_candidates.top().first;
+                                    lowerBoundcan = top_candidates.top().first;
                             }
                         }
                     }
@@ -1277,10 +832,10 @@ namespace hnswlib {
             }
             adsampling::tot_dist_calculation += cnt_visit;
             visited_list_pool_->releaseVisitedList(vl);
-            return top_candidates;
+            return answers;
         }
 
-        template <bool has_deletions, bool collect_metrics=false>
+        template<bool has_deletions, bool collect_metrics = false>
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
         searchBaseLayerPCAstar(tableint ep_id, const void *data_point, size_t ef, size_t k) const {
             VisitedList *vl = visited_list_pool_->getFreeVisitedList();
@@ -1304,8 +859,7 @@ namespace hnswlib {
                 answers.emplace(dist, ep_id);
                 top_candidates.emplace(dist, ep_id);
                 candidate_set.emplace(-dist, ep_id);
-            }
-            else {
+            } else {
                 lowerBound = std::numeric_limits<dist_t>::max();
                 lowerBoundcan = std::numeric_limits<dist_t>::max();
                 candidate_set.emplace(-lowerBound, ep_id);
@@ -1318,7 +872,8 @@ namespace hnswlib {
                 std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
 
                 // When the smallest object in S has its distance larger than the largest in R2, terminate the algorithm.
-                if ((-current_node_pair.first) > top_candidates.top().first && (top_candidates.size() == ef || has_deletions == false)) {
+                if ((-current_node_pair.first) > top_candidates.top().first &&
+                    (top_candidates.size() == ef || has_deletions == false)) {
                     break;
                 }
                 candidate_set.pop();
@@ -1326,10 +881,10 @@ namespace hnswlib {
                 // Fetch the smallest object in S.
                 tableint current_node_id = current_node_pair.second;
                 int *data = (int *) get_linklist0(current_node_id);
-                size_t size = getListCount((linklistsizeint*)data);
-                if(collect_metrics){
+                size_t size = getListCount((linklistsizeint *) data);
+                if (collect_metrics) {
                     metric_hops++;
-                    metric_distance_computations+=size;
+                    metric_distance_computations += size;
                 }
 
 
@@ -1337,15 +892,15 @@ namespace hnswlib {
                 for (size_t j = 1; j <= size; j++) {
                     int candidate_id = *(data + j);
                     if (!(visited_array[candidate_id] == visited_array_tag)) {
-                        cnt_visit ++;
+                        cnt_visit++;
                         visited_array[candidate_id] = visited_array_tag;
 
 
                         // If the KNN set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
-                        if (answers.size() < k){
+                        if (answers.size() < k) {
                             char *currObj1 = (getDataByInternalId(candidate_id));
                             dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-                            if (!has_deletions || !isMarkedDeleted(candidate_id)){
+                            if (!has_deletions || !isMarkedDeleted(candidate_id)) {
                                 candidate_set.emplace(-dist, candidate_id);
                                 top_candidates.emplace(dist, candidate_id);
                                 answers.emplace(dist, candidate_id);
@@ -1358,18 +913,20 @@ namespace hnswlib {
                             // Otherwise, conduct DCO with ADSampling wrt the Kth NN.
                         else {
                             char *currObj1 = (getDataByInternalId(candidate_id));
-                            dist_t dist = L->multi_linear_classifier_((float*)data_point,(float*) getDataByInternalId(candidate_id), lowerBound);
+                            dist_t dist = PCA->uniform_fast_inference((float *) data_point,
+                                                                      (float *) getDataByInternalId(candidate_id),
+                                                                      lowerBound, 0, PCA->get_pre_sum(candidate_id));
 
                             // If it's a positive object, then include it in R1, R2, S.
-                            if(dist >= 0){
+                            if (dist >= 0) {
                                 candidate_set.emplace(-dist, candidate_id);
-                                if(!has_deletions || !isMarkedDeleted(candidate_id)){
+                                if (!has_deletions || !isMarkedDeleted(candidate_id)) {
                                     top_candidates.emplace(dist, candidate_id);
                                     answers.emplace(dist, candidate_id);
                                 }
-                                if(top_candidates.size() > ef)
+                                if (top_candidates.size() > ef)
                                     top_candidates.pop();
-                                if(answers.size() > k)
+                                if (answers.size() > k)
                                     answers.pop();
 
                                 if (!answers.empty())
@@ -1378,12 +935,12 @@ namespace hnswlib {
                                     lowerBoundcan = top_candidates.top().first;
                             }
                                 // If it's a negative object, then update R2, S with the approximate distance.
-                            else{
-                                if(top_candidates.size() < ef || lowerBoundcan > -dist){
+                            else {
+                                if (top_candidates.size() < ef || lowerBoundcan > -dist) {
                                     top_candidates.emplace(-dist, candidate_id);
                                     candidate_set.emplace(dist, candidate_id);
                                 }
-                                if(top_candidates.size() > ef){
+                                if (top_candidates.size() > ef) {
                                     top_candidates.pop();
                                 }
                                 if (!top_candidates.empty())
@@ -1400,7 +957,7 @@ namespace hnswlib {
 
         void getNeighborsByHeuristic2(
                 std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> &top_candidates,
-        const size_t M) {
+                const size_t M) {
             if (top_candidates.size() < M) {
                 return;
             }
@@ -1420,7 +977,7 @@ namespace hnswlib {
                 queue_closest.pop();
                 bool good = true;
 
-                for (std::pair<dist_t, tableint> second_pair : return_list) {
+                for (std::pair<dist_t, tableint> second_pair: return_list) {
                     dist_t curdist =
                             fstdistfunc_(getDataByInternalId(second_pair.second),
                                          getDataByInternalId(curent_pair.second),
@@ -1435,7 +992,7 @@ namespace hnswlib {
                 }
             }
 
-            for (std::pair<dist_t, tableint> curent_pair : return_list) {
+            for (std::pair<dist_t, tableint> curent_pair: return_list) {
                 top_candidates.emplace(-curent_pair.first, curent_pair.second);
             }
         }
@@ -1458,8 +1015,8 @@ namespace hnswlib {
         };
 
         tableint mutuallyConnectNewElement(const void *data_point, tableint cur_c,
-                                       std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> &top_candidates,
-        int level, bool isUpdate) {
+                                           std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> &top_candidates,
+                                           int level, bool isUpdate) {
             size_t Mcurmax = level ? maxM_ : maxM0_;
             getNeighborsByHeuristic2(top_candidates, M_);
             if (top_candidates.size() > M_)
@@ -1484,8 +1041,8 @@ namespace hnswlib {
                 if (*ll_cur && !isUpdate) {
                     throw std::runtime_error("The newly inserted element should have blank link list");
                 }
-                setListCount(ll_cur,selectedNeighbors.size());
-                tableint *data = (tableint *) (ll_cur + 1);
+                setListCount(ll_cur, selectedNeighbors.size());
+                tableint *data = (tableint * )(ll_cur + 1);
                 for (size_t idx = 0; idx < selectedNeighbors.size(); idx++) {
                     if (data[idx] && !isUpdate)
                         throw std::runtime_error("Possible memory corruption");
@@ -1499,7 +1056,7 @@ namespace hnswlib {
 
             for (size_t idx = 0; idx < selectedNeighbors.size(); idx++) {
 
-                std::unique_lock <std::mutex> lock(link_list_locks_[selectedNeighbors[idx]]);
+                std::unique_lock<std::mutex> lock(link_list_locks_[selectedNeighbors[idx]]);
 
                 linklistsizeint *ll_other;
                 if (level == 0)
@@ -1516,7 +1073,7 @@ namespace hnswlib {
                 if (level > element_levels_[selectedNeighbors[idx]])
                     throw std::runtime_error("Trying to make a link on a non-existent level");
 
-                tableint *data = (tableint *) (ll_other + 1);
+                tableint *data = (tableint * )(ll_other + 1);
 
                 bool is_cur_c_present = false;
                 if (isUpdate) {
@@ -1535,7 +1092,8 @@ namespace hnswlib {
                         setListCount(ll_other, sz_link_list_other + 1);
                     } else {
                         // finding the "weakest" element to replace it with the new one
-                        dist_t d_max = fstdistfunc_(getDataByInternalId(cur_c), getDataByInternalId(selectedNeighbors[idx]),
+                        dist_t d_max = fstdistfunc_(getDataByInternalId(cur_c),
+                                                    getDataByInternalId(selectedNeighbors[idx]),
                                                     dist_func_param_);
                         // Heuristic:
                         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidates;
@@ -1543,7 +1101,8 @@ namespace hnswlib {
 
                         for (size_t j = 0; j < sz_link_list_other; j++) {
                             candidates.emplace(
-                                    fstdistfunc_(getDataByInternalId(data[j]), getDataByInternalId(selectedNeighbors[idx]),
+                                    fstdistfunc_(getDataByInternalId(data[j]),
+                                                 getDataByInternalId(selectedNeighbors[idx]),
                                                  dist_func_param_), data[j]);
                         }
 
@@ -1595,9 +1154,9 @@ namespace hnswlib {
                 while (changed) {
                     changed = false;
                     int *data;
-                    data = (int *) get_linklist(currObj,level);
+                    data = (int *) get_linklist(currObj, level);
                     int size = getListCount(data);
-                    tableint *datal = (tableint *) (data + 1);
+                    tableint *datal = (tableint * )(data + 1);
                     for (int i = 0; i < size; i++) {
                         tableint cand = datal[i];
                         if (cand < 0 || cand > max_elements_)
@@ -1614,13 +1173,14 @@ namespace hnswlib {
             }
 
             if (num_deleted_) {
-                std::priority_queue<std::pair<dist_t, tableint  >> top_candidates1=searchBaseLayerST<true>(currObj, query_data,
-                                                                                                           ef_);
+                std::priority_queue<std::pair<dist_t, tableint  >> top_candidates1 = searchBaseLayerST<true>(currObj,
+                                                                                                             query_data,
+                                                                                                             ef_);
                 top_candidates.swap(top_candidates1);
-            }
-            else{
-                std::priority_queue<std::pair<dist_t, tableint  >> top_candidates1=searchBaseLayerST<false>(currObj, query_data,
-                                                                                                            ef_);
+            } else {
+                std::priority_queue<std::pair<dist_t, tableint  >> top_candidates1 = searchBaseLayerST<false>(currObj,
+                                                                                                              query_data,
+                                                                                                              ef_);
                 top_candidates.swap(top_candidates1);
             }
 
@@ -1630,8 +1190,8 @@ namespace hnswlib {
             return top_candidates;
         };
 
-        void resizeIndex(size_t new_max_elements){
-            if (new_max_elements<cur_element_count)
+        void resizeIndex(size_t new_max_elements) {
+            if (new_max_elements < cur_element_count)
                 throw std::runtime_error("Cannot resize, max element is less than the current number of elements");
 
 
@@ -1644,13 +1204,14 @@ namespace hnswlib {
             std::vector<std::mutex>(new_max_elements).swap(link_list_locks_);
 
             // Reallocate base layer
-            char * data_level0_memory_new = (char *) realloc(data_level0_memory_, new_max_elements * size_data_per_element_);
+            char *data_level0_memory_new = (char *) realloc(data_level0_memory_,
+                                                            new_max_elements * size_data_per_element_);
             if (data_level0_memory_new == nullptr)
                 throw std::runtime_error("Not enough memory: resizeIndex failed to allocate base layer");
             data_level0_memory_ = data_level0_memory_new;
 
             // Reallocate all other layers
-            char ** linkLists_new = (char **) realloc(linkLists_, sizeof(void *) * new_max_elements);
+            char **linkLists_new = (char **) realloc(linkLists_, sizeof(void *) * new_max_elements);
             if (linkLists_new == nullptr)
                 throw std::runtime_error("Not enough memory: resizeIndex failed to allocate other layers");
             linkLists_ = linkLists_new;
@@ -1688,23 +1249,23 @@ namespace hnswlib {
             output.close();
         }
 
-        void loadIndex(const std::string &location, SpaceInterface<dist_t> *s, size_t max_elements_i=0) {
+        void loadIndex(const std::string &location, SpaceInterface<dist_t> *s, size_t max_elements_i = 0) {
             std::ifstream input(location, std::ios::binary);
 
             if (!input.is_open())
                 throw std::runtime_error("Cannot open file");
 
             // get file size:
-            input.seekg(0,input.end);
-            std::streampos total_filesize=input.tellg();
-            input.seekg(0,input.beg);
+            input.seekg(0, input.end);
+            std::streampos total_filesize = input.tellg();
+            input.seekg(0, input.beg);
 
             readBinaryPOD(input, offsetLevel0_);
             readBinaryPOD(input, max_elements_);
             readBinaryPOD(input, cur_element_count);
 
             size_t max_elements = max_elements_i;
-            if(max_elements < cur_element_count)
+            if (max_elements < cur_element_count)
                 max_elements = max_elements_;
             max_elements_ = max_elements;
             readBinaryPOD(input, size_data_per_element_);
@@ -1724,33 +1285,33 @@ namespace hnswlib {
             fstdistfunc_ = s->get_dist_func();
             dist_func_param_ = s->get_dist_func_param();
 
-            auto pos=input.tellg();
+            auto pos = input.tellg();
 
 
             /// Optional - check if index is ok:
 
-            input.seekg(cur_element_count * size_data_per_element_,input.cur);
+            input.seekg(cur_element_count * size_data_per_element_, input.cur);
             for (size_t i = 0; i < cur_element_count; i++) {
-                if(input.tellg() < 0 || input.tellg()>=total_filesize){
+                if (input.tellg() < 0 || input.tellg() >= total_filesize) {
                     throw std::runtime_error("Index seems to be corrupted or unsupported");
                 }
 
                 unsigned int linkListSize;
                 readBinaryPOD(input, linkListSize);
                 if (linkListSize != 0) {
-                    input.seekg(linkListSize,input.cur);
+                    input.seekg(linkListSize, input.cur);
                 }
             }
 
             // throw exception if it either corrupted or old index
-            if(input.tellg()!=total_filesize)
+            if (input.tellg() != total_filesize)
                 throw std::runtime_error("Index seems to be corrupted or unsupported");
 
             input.clear();
 
             /// Optional check end
 
-            input.seekg(pos,input.beg);
+            input.seekg(pos, input.beg);
 
             data_level0_memory_ = (char *) malloc(max_elements * size_data_per_element_);
             if (data_level0_memory_ == nullptr)
@@ -1772,7 +1333,7 @@ namespace hnswlib {
             revSize_ = 1.0 / mult_;
             ef_ = 10;
             for (size_t i = 0; i < cur_element_count; i++) {
-                label_lookup_[getExternalLabel(i)]=i;
+                label_lookup_[getExternalLabel(i)] = i;
                 unsigned int linkListSize;
                 readBinaryPOD(input, linkListSize);
                 if (linkListSize == 0) {
@@ -1789,7 +1350,7 @@ namespace hnswlib {
             }
 
             for (size_t i = 0; i < cur_element_count; i++) {
-                if(isMarkedDeleted(i))
+                if (isMarkedDeleted(i))
                     num_deleted_ += 1;
             }
 
@@ -1799,8 +1360,7 @@ namespace hnswlib {
         }
 
         template<typename data_t>
-        std::vector<data_t> getDataByLabel(labeltype label) const
-        {
+        std::vector<data_t> getDataByLabel(labeltype label) const {
             tableint label_c;
             auto search = label_lookup_.find(label);
             if (search == label_lookup_.end() || isMarkedDeleted(search->second)) {
@@ -1808,10 +1368,12 @@ namespace hnswlib {
             }
             label_c = search->second;
 
-            char* data_ptrv = getDataByInternalId(label_c);
-            size_t dim = *((size_t *) dist_func_param_);
+            char *data_ptrv = getDataByInternalId(label_c);
+            size_t
+                    dim = *((size_t * )
+            dist_func_param_);
             std::vector<data_t> data;
-            data_t* data_ptr = (data_t*) data_ptrv;
+            data_t *data_ptr = (data_t *) data_ptrv;
             for (int i = 0; i < dim; i++) {
                 data.push_back(*data_ptr);
                 data_ptr += 1;
@@ -1825,8 +1387,7 @@ namespace hnswlib {
          * Marks an element with the given label deleted, does NOT really change the current graph.
          * @param label
          */
-        void markDelete(labeltype label)
-        {
+        void markDelete(labeltype label) {
             auto search = label_lookup_.find(label);
             if (search == label_lookup_.end()) {
                 throw std::runtime_error("Label not found");
@@ -1842,14 +1403,11 @@ namespace hnswlib {
          */
         void markDeletedInternal(tableint internalId) {
             assert(internalId < cur_element_count);
-            if (!isMarkedDeleted(internalId))
-            {
-                unsigned char *ll_cur = ((unsigned char *)get_linklist0(internalId))+2;
+            if (!isMarkedDeleted(internalId)) {
+                unsigned char *ll_cur = ((unsigned char *) get_linklist0(internalId)) + 2;
                 *ll_cur |= DELETE_MARK;
                 num_deleted_ += 1;
-            }
-            else
-            {
+            } else {
                 throw std::runtime_error("The requested to delete element is already deleted");
             }
         }
@@ -1858,8 +1416,7 @@ namespace hnswlib {
          * Remove the deleted mark of the node, does NOT really change the current graph.
          * @param label
          */
-        void unmarkDelete(labeltype label)
-        {
+        void unmarkDelete(labeltype label) {
             auto search = label_lookup_.find(label);
             if (search == label_lookup_.end()) {
                 throw std::runtime_error("Label not found");
@@ -1874,14 +1431,11 @@ namespace hnswlib {
          */
         void unmarkDeletedInternal(tableint internalId) {
             assert(internalId < cur_element_count);
-            if (isMarkedDeleted(internalId))
-            {
-                unsigned char *ll_cur = ((unsigned char *)get_linklist0(internalId))+2;
+            if (isMarkedDeleted(internalId)) {
+                unsigned char *ll_cur = ((unsigned char *) get_linklist0(internalId)) + 2;
                 *ll_cur &= ~DELETE_MARK;
                 num_deleted_ -= 1;
-            }
-            else
-            {
+            } else {
                 throw std::runtime_error("The requested to undelete element is not deleted");
             }
         }
@@ -1892,20 +1446,20 @@ namespace hnswlib {
          * @return
          */
         bool isMarkedDeleted(tableint internalId) const {
-            unsigned char *ll_cur = ((unsigned char*)get_linklist0(internalId))+2;
+            unsigned char *ll_cur = ((unsigned char *) get_linklist0(internalId)) + 2;
             return *ll_cur & DELETE_MARK;
         }
 
-        unsigned short int getListCount(linklistsizeint * ptr) const {
-            return *((unsigned short int *)ptr);
+        unsigned short int getListCount(linklistsizeint *ptr) const {
+            return *((unsigned short int *) ptr);
         }
 
-        void setListCount(linklistsizeint * ptr, unsigned short int size) const {
-            *((unsigned short int*)(ptr))=*((unsigned short int *)&size);
+        void setListCount(linklistsizeint *ptr, unsigned short int size) const {
+            *((unsigned short int *) (ptr)) = *((unsigned short int *) &size);
         }
 
         void addPoint(const void *data_point, labeltype label) {
-            addPoint(data_point, label,-1);
+            addPoint(data_point, label, -1);
         }
 
         void updatePoint(const void *dataPoint, tableint internalId, float updateNeighborProbability) {
@@ -1929,7 +1483,7 @@ namespace hnswlib {
 
                 sCand.insert(internalId);
 
-                for (auto&& elOneHop : listOneHop) {
+                for (auto &&elOneHop: listOneHop) {
                     sCand.insert(elOneHop);
 
                     if (distribution(update_probability_generator_) > updateNeighborProbability)
@@ -1938,23 +1492,25 @@ namespace hnswlib {
                     sNeigh.insert(elOneHop);
 
                     std::vector<tableint> listTwoHop = getConnectionsWithLock(elOneHop, layer);
-                    for (auto&& elTwoHop : listTwoHop) {
+                    for (auto &&elTwoHop: listTwoHop) {
                         sCand.insert(elTwoHop);
                     }
                 }
 
-                for (auto&& neigh : sNeigh) {
+                for (auto &&neigh: sNeigh) {
                     // if (neigh == internalId)
                     //     continue;
 
                     std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidates;
-                    size_t size = sCand.find(neigh) == sCand.end() ? sCand.size() : sCand.size() - 1; // sCand guaranteed to have size >= 1
+                    size_t size = sCand.find(neigh) == sCand.end() ? sCand.size() : sCand.size() -
+                                                                                    1; // sCand guaranteed to have size >= 1
                     size_t elementsToKeep = std::min(ef_construction_, size);
-                    for (auto&& cand : sCand) {
+                    for (auto &&cand: sCand) {
                         if (cand == neigh)
                             continue;
 
-                        dist_t distance = fstdistfunc_(getDataByInternalId(neigh), getDataByInternalId(cand), dist_func_param_);
+                        dist_t distance = fstdistfunc_(getDataByInternalId(neigh), getDataByInternalId(cand),
+                                                       dist_func_param_);
                         if (candidates.size() < elementsToKeep) {
                             candidates.emplace(distance, cand);
                         } else {
@@ -1969,12 +1525,12 @@ namespace hnswlib {
                     getNeighborsByHeuristic2(candidates, layer == 0 ? maxM0_ : maxM_);
 
                     {
-                        std::unique_lock <std::mutex> lock(link_list_locks_[neigh]);
+                        std::unique_lock<std::mutex> lock(link_list_locks_[neigh]);
                         linklistsizeint *ll_cur;
                         ll_cur = get_linklist_at_level(neigh, layer);
                         size_t candSize = candidates.size();
                         setListCount(ll_cur, candSize);
-                        tableint *data = (tableint *) (ll_cur + 1);
+                        tableint *data = (tableint * )(ll_cur + 1);
                         for (size_t idx = 0; idx < candSize; idx++) {
                             data[idx] = candidates.top().second;
                             candidates.pop();
@@ -1986,7 +1542,9 @@ namespace hnswlib {
             repairConnectionsForUpdate(dataPoint, entryPointCopy, internalId, elemLevel, maxLevelCopy);
         };
 
-        void repairConnectionsForUpdate(const void *dataPoint, tableint entryPointInternalId, tableint dataPointInternalId, int dataPointLevel, int maxLevel) {
+        void
+        repairConnectionsForUpdate(const void *dataPoint, tableint entryPointInternalId, tableint dataPointInternalId,
+                                   int dataPointLevel, int maxLevel) {
             tableint currObj = entryPointInternalId;
             if (dataPointLevel < maxLevel) {
                 dist_t curdist = fstdistfunc_(dataPoint, getDataByInternalId(currObj), dist_func_param_);
@@ -1995,10 +1553,10 @@ namespace hnswlib {
                     while (changed) {
                         changed = false;
                         unsigned int *data;
-                        std::unique_lock <std::mutex> lock(link_list_locks_[currObj]);
-                        data = get_linklist_at_level(currObj,level);
+                        std::unique_lock<std::mutex> lock(link_list_locks_[currObj]);
+                        data = get_linklist_at_level(currObj, level);
                         int size = getListCount(data);
-                        tableint *datal = (tableint *) (data + 1);
+                        tableint *datal = (tableint * )(data + 1);
 #ifdef USE_SSE
                         _mm_prefetch(getDataByInternalId(*datal), _MM_HINT_T0);
 #endif
@@ -2038,23 +1596,26 @@ namespace hnswlib {
                 if (filteredTopCandidates.size() > 0) {
                     bool epDeleted = isMarkedDeleted(entryPointInternalId);
                     if (epDeleted) {
-                        filteredTopCandidates.emplace(fstdistfunc_(dataPoint, getDataByInternalId(entryPointInternalId), dist_func_param_), entryPointInternalId);
+                        filteredTopCandidates.emplace(
+                                fstdistfunc_(dataPoint, getDataByInternalId(entryPointInternalId), dist_func_param_),
+                                entryPointInternalId);
                         if (filteredTopCandidates.size() > ef_construction_)
                             filteredTopCandidates.pop();
                     }
 
-                    currObj = mutuallyConnectNewElement(dataPoint, dataPointInternalId, filteredTopCandidates, level, true);
+                    currObj = mutuallyConnectNewElement(dataPoint, dataPointInternalId, filteredTopCandidates, level,
+                                                        true);
                 }
             }
         }
 
         std::vector<tableint> getConnectionsWithLock(tableint internalId, int level) {
-            std::unique_lock <std::mutex> lock(link_list_locks_[internalId]);
+            std::unique_lock<std::mutex> lock(link_list_locks_[internalId]);
             unsigned int *data = get_linklist_at_level(internalId, level);
             int size = getListCount(data);
             std::vector<tableint> result(size);
-            tableint *ll = (tableint *) (data + 1);
-            memcpy(result.data(), ll,size * sizeof(tableint));
+            tableint *ll = (tableint * )(data + 1);
+            memcpy(result.data(), ll, size * sizeof(tableint));
             return result;
         };
 
@@ -2064,19 +1625,20 @@ namespace hnswlib {
             {
                 // Checking if the element with the same label already exists
                 // if so, updating it *instead* of creating a new element.
-                std::unique_lock <std::mutex> templock_curr(cur_element_count_guard_);
+                std::unique_lock<std::mutex> templock_curr(cur_element_count_guard_);
                 auto search = label_lookup_.find(label);
                 if (search != label_lookup_.end()) {
                     tableint existingInternalId = search->second;
                     templock_curr.unlock();
 
-                    std::unique_lock <std::mutex> lock_el_update(link_list_update_locks_[(existingInternalId & (max_update_element_locks - 1))]);
+                    std::unique_lock<std::mutex> lock_el_update(
+                            link_list_update_locks_[(existingInternalId & (max_update_element_locks - 1))]);
 
                     if (isMarkedDeleted(existingInternalId)) {
                         unmarkDeletedInternal(existingInternalId);
                     }
                     updatePoint(data_point, existingInternalId, 1.0);
-                    
+
                     return existingInternalId;
                 }
 
@@ -2090,8 +1652,9 @@ namespace hnswlib {
             }
 
             // Take update lock to prevent race conditions on an element with insertion/update at the same time.
-            std::unique_lock <std::mutex> lock_el_update(link_list_update_locks_[(cur_c & (max_update_element_locks - 1))]);
-            std::unique_lock <std::mutex> lock_el(link_list_locks_[cur_c]);
+            std::unique_lock<std::mutex> lock_el_update(
+                    link_list_update_locks_[(cur_c & (max_update_element_locks - 1))]);
+            std::unique_lock<std::mutex> lock_el(link_list_locks_[cur_c]);
             int curlevel = getRandomLevel(mult_);
             if (level > 0)
                 curlevel = level;
@@ -2099,7 +1662,7 @@ namespace hnswlib {
             element_levels_[cur_c] = curlevel;
 
 
-            std::unique_lock <std::mutex> templock(global);
+            std::unique_lock<std::mutex> templock(global);
             int maxlevelcopy = maxlevel_;
             if (curlevel <= maxlevelcopy)
                 templock.unlock();
@@ -2121,7 +1684,7 @@ namespace hnswlib {
                 memset(linkLists_[cur_c], 0, size_links_per_element_ * curlevel + 1);
             }
 
-            if ((signed)currObj != -1) {
+            if ((signed) currObj != -1) {
 
                 if (curlevel < maxlevelcopy) {
 
@@ -2133,11 +1696,11 @@ namespace hnswlib {
                         while (changed) {
                             changed = false;
                             unsigned int *data;
-                            std::unique_lock <std::mutex> lock(link_list_locks_[currObj]);
-                            data = get_linklist(currObj,level);
+                            std::unique_lock<std::mutex> lock(link_list_locks_[currObj]);
+                            data = get_linklist(currObj, level);
                             int size = getListCount(data);
 
-                            tableint *datal = (tableint *) (data + 1);
+                            tableint *datal = (tableint * )(data + 1);
                             for (int i = 0; i < size; i++) {
                                 tableint cand = datal[i];
                                 if (cand < 0 || cand > max_elements_)
@@ -2161,7 +1724,9 @@ namespace hnswlib {
                     std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates = searchBaseLayer(
                             currObj, data_point, level);
                     if (epDeleted) {
-                        top_candidates.emplace(fstdistfunc_(data_point, getDataByInternalId(enterpoint_copy), dist_func_param_), enterpoint_copy);
+                        top_candidates.emplace(
+                                fstdistfunc_(data_point, getDataByInternalId(enterpoint_copy), dist_func_param_),
+                                enterpoint_copy);
                         if (top_candidates.size() > ef_construction_)
                             top_candidates.pop();
                     }
@@ -2186,12 +1751,10 @@ namespace hnswlib {
 
         //max heap
         std::priority_queue<std::pair<dist_t, labeltype >>
-        searchKnn(void *query_data, size_t k, int adaptive=0) const {
-            
+        searchKnn(void *query_data, size_t k, int adaptive = 0) const {
+            if (7 <= adaptive && adaptive <= 8)
+                PCA->get_query_square((float *) query_data);
             std::priority_queue<std::pair<dist_t, labeltype >> result;
-            if(3<=adaptive&&adaptive<=6){
-                PQ->calc_dist_map((float*)query_data);
-            }
             if (cur_element_count == 0) return result;
 
             tableint currObj = enterpoint_node_;
@@ -2202,27 +1765,27 @@ namespace hnswlib {
 #ifdef COUNT_DIST_TIME
             adsampling::distance_time += stopw.getElapsedTimeMicro();
 #endif
-            adsampling::tot_dist_calculation ++;
+            adsampling::tot_dist_calculation++;
             for (int level = maxlevel_; level > 0; level--) {
-                
+
                 bool changed = true;
                 while (changed) {
-                    
+
                     changed = false;
                     unsigned int *data;
 
                     data = (unsigned int *) get_linklist(currObj, level);
                     int size = getListCount(data);
                     metric_hops++;
-                    metric_distance_computations+=size;
+                    metric_distance_computations += size;
 
-                    tableint *datal = (tableint *) (data + 1);
+                    tableint *datal = (tableint * )(data + 1);
                     for (int i = 0; i < size; i++) {
                         tableint cand = datal[i];
                         if (cand < 0 || cand > max_elements_)
                             throw std::runtime_error("cand error");
-                        adsampling::tot_dist_calculation ++;
-                        if(adaptive==1 || adaptive==2){
+                        adsampling::tot_dist_calculation++;
+                        if (adaptive == 1 || adaptive == 2) {
 #ifdef COUNT_DIST_TIME
                             StopW stopw = StopW();
 #endif
@@ -2230,32 +1793,31 @@ namespace hnswlib {
 #ifdef COUNT_DIST_TIME
                             adsampling::distance_time += stopw.getElapsedTimeMicro();
 #endif
-                            if(d > 0){
+                            if (d > 0) {
                                 curdist = d;
                                 currObj = cand;
                                 changed = true;
                             }
-                        }
-                        else if(3<=adaptive&&adaptive<=6){
-                            dist_t d = PQ->naive_product_map_dist(cand);
-                            if(L->linear_classifier_default_pq(d,PQ->node_cluster_dist_[cand], curdist)) continue;
-                            else d = fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_);
-                            if(d < curdist){
+                        } else if (adaptive == 7) {
+                            float pre_sum = ((float *) get_pre_square(cand))[0] + PCA->query_square;
+                            dist_t d = PCA->uniform_fast_inference((float *) query_data,
+                                                                   (float *) getDataByInternalId(cand), curdist, 0,
+                                                                   pre_sum);
+                            if (d < curdist && d > 0) {
                                 curdist = d;
                                 currObj = cand;
                                 changed = true;
                             }
-                        }
-                        else if(7<=adaptive&&adaptive<=8){
-                            dist_t d = L->multi_linear_classifier_((float*)query_data,(float*) getDataByInternalId(cand), curdist);
-                            if(d < curdist && d > 0){
+                        } else if (adaptive == 8) {
+                            dist_t d = PCA->uniform_fast_inference((float *) query_data,
+                                                                   (float *) getDataByInternalId(cand), curdist, 0,
+                                                                   PCA->get_pre_sum(cand));
+                            if (d < curdist && d > 0) {
                                 curdist = d;
                                 currObj = cand;
                                 changed = true;
                             }
-                        }
-
-                        else {
+                        } else {
 #ifdef COUNT_DIST_TIME
                             StopW stopw = StopW();
 #endif
@@ -2263,7 +1825,7 @@ namespace hnswlib {
 #ifdef COUNT_DIST_TIME
                             adsampling::distance_time += stopw.getElapsedTimeMicro();
 #endif
-                            adsampling::tot_full_dist ++;
+                            adsampling::tot_full_dist++;
                             if (d < curdist) {
                                 curdist = d;
                                 currObj = cand;
@@ -2275,28 +1837,27 @@ namespace hnswlib {
             }
             //max heap
             std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
-            
+
             if (num_deleted_) {
-                if(adaptive == 1) top_candidates=searchBaseLayerADstar<true,true>(currObj, query_data, std::max(ef_, k), k);
-                else if(adaptive == 2) top_candidates=searchBaseLayerAD<true,true>(currObj, query_data, std::max(ef_, k));
-                else if(adaptive == 3) top_candidates=searchBaseLayerPQ<true, true>(currObj, query_data, std::max(ef_, k));
-                else if(adaptive == 4) top_candidates=searchBaseLayerPQsimd<true, true>(currObj, query_data, std::max(ef_, k));
-                else if(adaptive == 5) top_candidates=searchBaseLayerPQstar<true,true>(currObj, query_data, std::max(ef_, k), k);
-                else if(adaptive == 6) top_candidates=searchBaseLayerPQstarsimd<true, true>(currObj, query_data, std::max(ef_, k), k);
-                else if(adaptive == 7) top_candidates=searchBaseLayerPCA<true,true>(currObj, query_data, std::max(ef_, k), k);
-                else if(adaptive == 8) top_candidates=searchBaseLayerPCAstar<true, true>(currObj, query_data, std::max(ef_, k), k);
-                else top_candidates=searchBaseLayerST<true,true>(currObj, query_data, std::max(ef_, k));
-            }
-            else{
-                if(adaptive == 1) top_candidates=searchBaseLayerADstar<true,true>(currObj, query_data, std::max(ef_, k), k);
-                else if(adaptive == 2) top_candidates=searchBaseLayerAD<true,true>(currObj, query_data, std::max(ef_, k));
-                else if(adaptive == 3) top_candidates=searchBaseLayerPQ<true, true>(currObj, query_data, std::max(ef_, k));
-                else if(adaptive == 4) top_candidates=searchBaseLayerPQsimd<true, true>(currObj, query_data, std::max(ef_, k));
-                else if(adaptive == 5) top_candidates=searchBaseLayerPQstar<true,true>(currObj, query_data, std::max(ef_, k), k);
-                else if(adaptive == 6) top_candidates=searchBaseLayerPQstarsimd<true, true>(currObj, query_data, std::max(ef_, k), k);
-                else if(adaptive == 7) top_candidates=searchBaseLayerPCA<true,true>(currObj, query_data, std::max(ef_, k), k);
-                else if(adaptive == 8) top_candidates=searchBaseLayerPCAstar<true, true>(currObj, query_data, std::max(ef_, k), k);
-                else top_candidates=searchBaseLayerST<false,true>(currObj, query_data, std::max(ef_, k));
+                if (adaptive == 1)
+                    top_candidates = searchBaseLayerADstar<true, true>(currObj, query_data, std::max(ef_, k), k);
+                else if (adaptive == 2)
+                    top_candidates = searchBaseLayerAD<true, true>(currObj, query_data, std::max(ef_, k));
+                else if (adaptive == 7)
+                    top_candidates = searchBaseLayerPCAplus<true, true>(currObj, query_data, std::max(ef_, k), k);
+                else if (adaptive == 8)
+                    top_candidates = searchBaseLayerPCAstar<true, true>(currObj, query_data, std::max(ef_, k), k);
+                else top_candidates = searchBaseLayerST<true, true>(currObj, query_data, std::max(ef_, k));
+            } else {
+                if (adaptive == 1)
+                    top_candidates = searchBaseLayerADstar<true, true>(currObj, query_data, std::max(ef_, k), k);
+                else if (adaptive == 2)
+                    top_candidates = searchBaseLayerAD<true, true>(currObj, query_data, std::max(ef_, k));
+                else if (adaptive == 7)
+                    top_candidates = searchBaseLayerPCAplus<true, true>(currObj, query_data, std::max(ef_, k), k);
+                else if (adaptive == 8)
+                    top_candidates = searchBaseLayerPCAstar<true, true>(currObj, query_data, std::max(ef_, k), k);
+                else top_candidates = searchBaseLayerST<false, true>(currObj, query_data, std::max(ef_, k));
             }
 
             //cerr << "search baselayer succeed!" << endl;
@@ -2312,9 +1873,9 @@ namespace hnswlib {
         };
 
         //max heap
-        std::vector<std::tuple<unsigned,float,float> >
-        searchKnnlogger(void *query_data, size_t k, int adaptive=0) const {
-            std::vector<std::tuple<unsigned,float,float> > logger, tmp;
+        std::vector<std::tuple<unsigned, float, float> >
+        searchKnnlogger(void *query_data, size_t k, int adaptive = 0) const {
+            std::vector<std::tuple<unsigned, float, float> > logger, tmp;
             if (cur_element_count == 0) return logger;
             tableint currObj = enterpoint_node_;
             dist_t curdist = fstdistfunc_(query_data, getDataByInternalId(enterpoint_node_), dist_func_param_);
@@ -2329,14 +1890,14 @@ namespace hnswlib {
                     data = (unsigned int *) get_linklist(currObj, level);
                     int size = getListCount(data);
                     metric_hops++;
-                    metric_distance_computations+=size;
+                    metric_distance_computations += size;
 
-                    tableint *datal = (tableint *) (data + 1);
+                    tableint *datal = (tableint * )(data + 1);
                     for (int i = 0; i < size; i++) {
                         tableint cand = datal[i];
                         if (cand < 0 || cand > max_elements_)
                             throw std::runtime_error("cand error");
-                        adsampling::tot_dist_calculation ++;
+                        adsampling::tot_dist_calculation++;
                         dist_t d = fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_);
                         tmp.emplace_back(cand, d, curdist);
                         if (d < curdist) {
@@ -2347,24 +1908,23 @@ namespace hnswlib {
                     }
                 }
             }
-            logger = searchBaseLayerlogger<true,true>(currObj, query_data, std::max(ef_, k), k, adaptive);
-            for(auto u:tmp)
+            logger = searchBaseLayerlogger<true, true>(currObj, query_data, std::max(ef_, k), k, adaptive);
+            for (auto u: tmp)
                 logger.push_back(u);
             return logger;
         };
 
 
-
-        void checkIntegrity(){
-            int connections_checked=0;
-            std::vector <int > inbound_connections_num(cur_element_count,0);
-            for(int i = 0;i < cur_element_count; i++){
-                for(int l = 0;l <= element_levels_[i]; l++){
-                    linklistsizeint *ll_cur = get_linklist_at_level(i,l);
+        void checkIntegrity() {
+            int connections_checked = 0;
+            std::vector<int> inbound_connections_num(cur_element_count, 0);
+            for (int i = 0; i < cur_element_count; i++) {
+                for (int l = 0; l <= element_levels_[i]; l++) {
+                    linklistsizeint *ll_cur = get_linklist_at_level(i, l);
                     int size = getListCount(ll_cur);
-                    tableint *data = (tableint *) (ll_cur + 1);
+                    tableint *data = (tableint * )(ll_cur + 1);
                     std::unordered_set<tableint> s;
-                    for (int j=0; j<size; j++){
+                    for (int j = 0; j < size; j++) {
                         assert(data[j] > 0);
                         assert(data[j] < cur_element_count);
                         assert (data[j] != i);
@@ -2376,48 +1936,44 @@ namespace hnswlib {
                     assert(s.size() == size);
                 }
             }
-            if(cur_element_count > 1){
-                int min1=inbound_connections_num[0], max1=inbound_connections_num[0];
-                for(int i=0; i < cur_element_count; i++){
+            if (cur_element_count > 1) {
+                int min1 = inbound_connections_num[0], max1 = inbound_connections_num[0];
+                for (int i = 0; i < cur_element_count; i++) {
                     assert(inbound_connections_num[i] > 0);
-                    min1=std::min(inbound_connections_num[i],min1);
-                    max1=std::max(inbound_connections_num[i],max1);
+                    min1 = std::min(inbound_connections_num[i], min1);
+                    max1 = std::max(inbound_connections_num[i], max1);
                 }
                 std::cout << "Min inbound: " << min1 << ", Max inbound:" << max1 << "\n";
             }
             std::cout << "integrity ok, checked " << connections_checked << " connections\n";
-
         }
 
-        void encoder_origin_data(){
-            PQ->pq_mp = new unsigned char[PQ->nd_ * PQ->sub_vector];
-            PQ->node_cluster_dist_ = new float[PQ->nd_];
-            double ave_dist = 0.0;
-#pragma omp parallel for
-            for (int i = 0; i < PQ->nd_; i++) {
-                float dist_to_centroid = 0.0;
-                for (int j = 0; j < PQ->sub_vector; j++) {
-                    uint8_t belong = 0;
-                    float dist = naive_l2_dist_calc((float *)getDataByInternalId(i), PQ->pq_book[j][0].data(), PQ->sub_dim);
-                    for (int k = 1; k < PQ->sub_cluster_count; k++) {
-                        float new_dist = naive_l2_dist_calc((float *)getDataByInternalId(i) + j * PQ->sub_dim, PQ->pq_book[j][k].data(),
-                                                            PQ->sub_dim);
-                        if (new_dist < dist) {
-                            belong = k;
-                            dist = new_dist;
-                        }
-                    }
-                    dist_to_centroid += dist;
-                    PQ->pq_mp[i * PQ->sub_vector + j] = belong;
-                }
-                PQ->node_cluster_dist_[i] = dist_to_centroid;
-#pragma omp critical
-                ave_dist += dist_to_centroid;
+        void reorder_square() {
+            std::vector<float> tmp(PCA->nd_, 0);
+            for (int i = 0; i < PCA->nd_; i++) {
+                tmp[i] = PCA->base_square[getExternalLabel(i)];
             }
-            std::cerr << "Encoder ave dist:: " << ave_dist / PQ->nd_ << std::endl;
+            for (int i = 0; i < PCA->nd_; i++) PCA->base_square[i] = tmp[i];
+        }
+
+        void reorganized_data_aligned() {
+            unsigned tmp_data_pre_element = size_data_per_element_ + sizeof(float);
+            char *tmp_swap = (char *) malloc(max_elements_ * tmp_data_pre_element);
+            for (int i = 0; i < max_elements_; i++) {
+                memcpy(tmp_swap + i * tmp_data_pre_element, data_level0_memory_ + i * size_data_per_element_,
+                       offsetData_);
+                memcpy(tmp_swap + i * tmp_data_pre_element + offsetData_, &PCA->base_square[i], sizeof(float));
+                memcpy(tmp_swap + i * tmp_data_pre_element + offsetData_ + sizeof(float),
+                       data_level0_memory_ + i * size_data_per_element_ + offsetData_, data_size_ + sizeof(labeltype));
+            }
+            free(data_level0_memory_);
+            data_level0_memory_ = tmp_swap;
+            offsetSquare_ = offsetData_;
+            offsetData_ += sizeof(float);
+            size_data_per_element_ += sizeof(float);
+            label_offset_ += sizeof(float);
         }
 
 
     };
-
 }
