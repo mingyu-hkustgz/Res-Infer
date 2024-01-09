@@ -10,6 +10,7 @@ __pycharm__
 *.ivf
 *.hnsw
 *.png
+*.jpg
 *.index
 result_*
 data/__pycache__/

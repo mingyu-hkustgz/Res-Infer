@@ -10,6 +10,6 @@ cd ./script
 #
 #bash index_pca.sh
 
-# bash search_ivf.sh
+bash search_ivf.sh
 
 bash search_hnsw.sh

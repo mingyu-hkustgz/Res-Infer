@@ -6,7 +6,7 @@ import struct
 from tqdm import tqdm
 
 source = '/home/BLD/mingyu/DATA/vector_data'
-datasets = ['gist', 'deep1M', '_msong', '_tiny5m', '_glove2.2m', '_word2vec']
+datasets = ['gist']
 
 hnsw_marker = ['o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o']
 ivf_marker = ['s', 's', 's', 's', 's', 's', 's', 's', 's']

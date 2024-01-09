@@ -51,10 +51,10 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbose', help='visual option', default=False)
     parser.add_argument('-k', '--K', help='K nearest neighbor', default=1)
     args = vars(parser.parse_args())
-    dataset = "deep1M"
+    dataset = "_glove2.2m"
     method_type = "pca"
     method_dim = "32"
-    index_type = "ivf"
+    index_type = "hnsw1"
     verbose = True
     K = 20
     print(f"visual - {dataset}")
@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
 
     plt.rc('font', family='Times New Roman')
-    plt.figure(figsize=(5, 4))
+    plt.figure(figsize=(10, 10))
     plt.rcParams.update({'font.size': 18})
     for model_id in [2, 3, 4]:
         app_dist = original_data[:, model_id]
@@ -90,14 +90,15 @@ if __name__ == "__main__":
                 X_sample.append(X[i][0])
 
         X_sample.sort()
-        dim = model_id * 32
+        dim = (model_id-1) * 32
         arr_mean = np.mean(X_sample)
         arr_var = np.var(X_sample)
         print(arr_mean, arr_var)
         print("%.8f" % arr_var)
         # print(X_sample)
-        plt.hist(X_sample, bins=100, alpha=0.2)
+        plt.hist(X_sample, bins=100, alpha=0.2,label=f"proj dim= {dim}")
         print(arr_mean)
 
     plt.legend()
     plt.show()
+    plt.savefig('./figure/bias.jpg')

@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
         adsampling::D = Q.d;
     }else if (5 <= randomize && randomize <= 6) {
         auto PCA = new Index_PCA::PCA(ivf.N, Q.d);
-        PCA->sigma_count = 8;
+        PCA->sigma_count = 16;
         PCA->base_dim = 32;
         PCA->load_project_matrix(transformation_path);
         PCA->load_base_square(square_path);

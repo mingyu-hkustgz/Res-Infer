@@ -14,6 +14,37 @@ namespace Index_PCA {
             dimension_ = (int) dim;// the project dim
         }
 
+
+        /*
+         *
+         */
+
+        void load_linear_model(char *filename) {
+            if (!isFileExists_ifstream(filename)) return;
+            std::ifstream fin(filename);
+            unsigned num;
+            fin >> num;
+            W_.resize(num);
+            B_.resize(num);
+            b_.resize(num);
+            model_count = num;
+            for (int i = 0; i < num; i++) {
+                fin >> W_[i] >> B_[i] >> b_[i];
+            }
+            learn_res_dim = dimension_ % base_dim;
+            fix_dim = dimension_ - uni_res_dim;
+            std::cerr << fix_dim << " " << uni_res_dim << " " << num << std::endl;
+            fin.close();
+            if (base_square != nullptr) {
+                for (int i = 0; i < num; i++) {
+                    W_[i] *= -2.0;
+                    B_[i] *= -2.0;
+                    b_[i] *= -2.0;
+                }
+            }
+        }
+
+
         /*
          * note that we do not add feature normalization
          */
@@ -54,10 +85,7 @@ namespace Index_PCA {
             }
             if (base_dim) {
                 uni_res_dim = dimension_ % base_dim;
-                int cur_dim = base_dim;
-                while (cur_dim <= dimension_) cur_dim = cur_dim + cur_dim;
-                if (cur_dim > dimension_) cur_dim >>= 1;
-                log_res_dim = dimension_ - cur_dim;
+                fix_dim = dimension_ - uni_res_dim;
             }
         }
 
@@ -84,10 +112,16 @@ namespace Index_PCA {
         }
 
         __attribute__((always_inline))
-        inline bool target_linear_classifier_(float res, float threshold, int tag_dim) const {
+        inline bool uniform_inference(float &res, float &threshold, int &tag_dim) const {
             if (res - pre_query[tag_dim] > threshold) return true;
             else return false;
         }
+
+        __attribute__((always_inline))
+        inline bool learned_inference(float &res, float &threshold, int tag_model) const {
+            return res * W_[tag_model] + B_[tag_model] > threshold;
+        }
+
 
         __attribute__((always_inline))
         inline float get_pre_sum(unsigned id) const {
@@ -102,9 +136,9 @@ namespace Index_PCA {
 #ifdef COUNT_DIMENSION
                 adsampling::tot_dimension += base_dim;
 #endif
-                if (target_linear_classifier_(res, threshold, cur)) return -res;
+                if (uniform_inference(res, threshold, cur)) return -res;
             }
-            while (cur < dimension_) {
+            while (cur < fix_dim) {
                 res -= 2 * naive_lp_dist_calc(p, q, base_dim);
                 p += base_dim;
                 q += base_dim;
@@ -112,63 +146,128 @@ namespace Index_PCA {
 #ifdef COUNT_DIMENSION
                 adsampling::tot_dimension += base_dim;
 #endif
-                if (target_linear_classifier_(res, threshold, cur)) return -res;
+                if (uniform_inference(res, threshold, cur)) return -res;
             }
             if (uni_res_dim) {
 #ifdef COUNT_DIMENSION
                 adsampling::tot_dimension += uni_res_dim;
 #endif
                 res -= 2 * naive_lp_dist_calc(q, p, uni_res_dim);
-                if (res > threshold) return -res;
+            }
+            if (res > threshold) return -res;
+            else return res;
+        }
+
+
+        __attribute__((always_inline))
+        inline float
+        learned_fast_inference_l2(float *q, float *p, float thresh_dist, int tag_model = 0, float res = 0) {
+            unsigned cur = base_dim;
+#ifdef COUNT_DIMENSION
+            adsampling::tot_dimension += base_dim;
+#endif
+            if (tag_model == 1) {
+                if (learned_inference(res, thresh_dist, 0)) return -res * W_[0] - b_[0];
+                cur += base_dim;
+            }
+            for (; cur <= fix_dim; cur += base_dim) {
+                res += sqr_dist(p, q, base_dim);
+                p += base_dim;
+                q += base_dim;
+#ifdef COUNT_DIMENSION
+                adsampling::tot_dimension += base_dim;
+#endif
+                if (learned_inference(res, thresh_dist, tag_model)) return -res * W_[tag_model] - b_[tag_model];
+                tag_model++;
+            }
+            if (learn_res_dim) {
+#ifdef COUNT_DIMENSION
+                adsampling::tot_dimension += learn_res_dim;
+#endif
+                res += sqr_dist(q, p, learn_res_dim);
+                if (res > thresh_dist) return -res;
             }
             return res;
         }
 
         __attribute__((always_inline))
-        inline float log_fast_inference(float *q, float *p, float threshold, int tag_dim = 0, float res = 0) const {
-            int cur = tag_dim;
-            if (cur != 0) {
-                if (target_linear_classifier_(res, threshold, cur)) return -res;
+        inline float
+        learned_fast_inference_lp(float *q, float *p, float thresh_dist, int tag_model = 0, float res = 0) {
+            unsigned cur = base_dim;
+#ifdef COUNT_DIMENSION
+            adsampling::tot_dimension += base_dim;
+#endif
+            if (tag_model == 1) {
+                if (learned_inference(res, thresh_dist, 0)) return -res * W_[0] - b_[0];
+                cur += base_dim;
+            }
+            for (; cur <= fix_dim; cur += base_dim) {
+                res -= 2 * naive_lp_dist_calc(p, q, base_dim);
+                p += base_dim;
+                q += base_dim;
 #ifdef COUNT_DIMENSION
                 adsampling::tot_dimension += base_dim;
 #endif
-            } else {
-                cur = base_dim;
-                res -= 2 * naive_lp_dist_calc(p, q, cur);
-                p += cur;
-                q += cur;
-                if (target_linear_classifier_(res, threshold, cur)) return -res;
-#ifdef COUNT_DIMENSION
-                adsampling::tot_dimension += base_dim;
-#endif
+                if (learned_inference(res, thresh_dist, tag_model)) return -res * W_[tag_model] - b_[tag_model];
+                tag_model++;
             }
-            while (cur << 1 <= dimension_) {
-                res -= 2 * naive_lp_dist_calc(p, q, cur);
-                p += cur;
-                q += cur;
+            if (learn_res_dim) {
 #ifdef COUNT_DIMENSION
-                adsampling::tot_dimension += cur;
+                adsampling::tot_dimension += learn_res_dim;
 #endif
-                cur <<= 1;
-                if (target_linear_classifier_(res, threshold, cur)) return -res;
-            }
-            if (log_res_dim) {
-#ifdef COUNT_DIMENSION
-                adsampling::tot_dimension += log_res_dim;
-#endif
-                res -= 2 * naive_lp_dist_calc(q, p, log_res_dim);
-                if (res > threshold) return -res;
+                res -= 2 * naive_lp_dist_calc(p, q, base_dim);
+                if (res > thresh_dist) return -res;
             }
             return res;
         }
 
 
+        void
+        binary_search_single_linear(unsigned num, const float *app_dist, const float *acc_dist, const float *thresh,
+                                    unsigned id) {
+            double l = 0.0, r = 0.0, res;
+            for (int i = 0; i < num; i++) {
+                if (thresh[i] * W_[id] > r) r = thresh[i] * W_[id] * 1.01;
+            }
+            l = -r;
+            if (verbose)
+                std::cerr << l << " <-left right-> " << r << endl;
+            while (r - l > eps) {
+                double mid = (l + r) / 2.0;
+                unsigned bad_count = 0;
+#pragma omp parallel for reduction(+:bad_count)
+                for (int i = 0; i < num; i++) {
+                    if (app_dist[i] * W_[id] + mid > thresh[i] && (double) acc_dist[i] < (double) thresh[i] + 1e-6) {
+                        bad_count++;
+                    }
+                }
+                bad_count = std::min(bad_count, count_base);
+                double test_recall = (double) ((double) count_base - (double) bad_count) / (double) count_base;
+                if (test_recall < recall) {
+                    r = mid - eps;
+                } else {
+                    if (verbose)
+                        std::cerr << mid << " <-gap-> " << r << " recall::" << test_recall << " bad-> " << bad_count
+                                  << endl;
+                    res = mid;
+                    l = mid + eps;
+                }
+            }
+            B_[id] = (float) res;
+        }
+
+
         Eigen::MatrixXf X_;
         Eigen::MatrixXd vec, val;
-        int base_dim = 32, dimension_, uni_res_dim, log_res_dim;
+        int base_dim = 32, dimension_, uni_res_dim, learn_res_dim, fix_dim;
         unsigned nd_;
-        float *mean_, *var, *base_square, *pre_query;
+        float *mean_ = nullptr, *var = nullptr, *base_square = nullptr, *pre_query = nullptr;
         float sigma_count = 3.0, query_square = 0;
+
+        std::vector<float> W_, B_, b_;
+        double eps = 1e-5, recall = 0.995;
+        unsigned count_base, model_count;
+        bool verbose = true;
     };
 
 }

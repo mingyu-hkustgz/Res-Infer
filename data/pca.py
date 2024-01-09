@@ -40,6 +40,7 @@ if __name__ == "__main__":
     square_base = np.square(base)
     pre_sum_square = np.sum(square_base, axis=1)
     pre_sum_square = pre_sum_square.reshape(1, N)
+    X_sample = base[ground]
     variance = np.var(X_sample, axis=0)
     save_matrix = np.vstack((mean, variance, projection_matrix))
     fvecs_write(matrix_save_path, save_matrix)

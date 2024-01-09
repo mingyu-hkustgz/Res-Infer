@@ -5,7 +5,7 @@ import numpy as np
 import faiss
 
 source = '/home/DATA/vector_data/'
-datasets = ['_sift10m']
+datasets = ['gist']
 
 
 def do_compute_gt(xb, xq, topk=100):

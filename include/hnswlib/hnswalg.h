@@ -1530,7 +1530,7 @@ namespace hnswlib {
                         ll_cur = get_linklist_at_level(neigh, layer);
                         size_t candSize = candidates.size();
                         setListCount(ll_cur, candSize);
-                        tableint *data = (tableint * )(ll_cur + 1);
+                        tableint *data = (tableint *) (ll_cur + 1);
                         for (size_t idx = 0; idx < candSize; idx++) {
                             data[idx] = candidates.top().second;
                             candidates.pop();
@@ -1779,7 +1779,7 @@ namespace hnswlib {
                     metric_hops++;
                     metric_distance_computations += size;
 
-                    tableint *datal = (tableint * )(data + 1);
+                    tableint *datal = (tableint *) (data + 1);
                     for (int i = 0; i < size; i++) {
                         tableint cand = datal[i];
                         if (cand < 0 || cand > max_elements_)
@@ -1892,7 +1892,7 @@ namespace hnswlib {
                     metric_hops++;
                     metric_distance_computations += size;
 
-                    tableint *datal = (tableint * )(data + 1);
+                    tableint *datal = (tableint *) (data + 1);
                     for (int i = 0; i < size; i++) {
                         tableint cand = datal[i];
                         if (cand < 0 || cand > max_elements_)
@@ -1922,7 +1922,7 @@ namespace hnswlib {
                 for (int l = 0; l <= element_levels_[i]; l++) {
                     linklistsizeint *ll_cur = get_linklist_at_level(i, l);
                     int size = getListCount(ll_cur);
-                    tableint *data = (tableint * )(ll_cur + 1);
+                    tableint *data = (tableint *) (ll_cur + 1);
                     std::unordered_set<tableint> s;
                     for (int j = 0; j < size; j++) {
                         assert(data[j] > 0);
@@ -1959,12 +1959,14 @@ namespace hnswlib {
         void reorganized_data_aligned() {
             unsigned tmp_data_pre_element = size_data_per_element_ + sizeof(float);
             char *tmp_swap = (char *) malloc(max_elements_ * tmp_data_pre_element);
+            char *iter_tmp = tmp_swap;
+            char *iter_data = data_level0_memory_;
             for (int i = 0; i < max_elements_; i++) {
-                memcpy(tmp_swap + i * tmp_data_pre_element, data_level0_memory_ + i * size_data_per_element_,
-                       offsetData_);
-                memcpy(tmp_swap + i * tmp_data_pre_element + offsetData_, &PCA->base_square[i], sizeof(float));
-                memcpy(tmp_swap + i * tmp_data_pre_element + offsetData_ + sizeof(float),
-                       data_level0_memory_ + i * size_data_per_element_ + offsetData_, data_size_ + sizeof(labeltype));
+                memmove(iter_tmp , iter_data,offsetData_);
+                memmove(iter_tmp + offsetData_, &PCA->base_square[i], sizeof(float));
+                memmove(iter_tmp + offsetData_ + sizeof(float),iter_data + offsetData_, (data_size_ + sizeof(labeltype)));
+                iter_tmp += tmp_data_pre_element;
+                iter_data += size_data_per_element_;
             }
             free(data_level0_memory_);
             data_level0_memory_ = tmp_swap;

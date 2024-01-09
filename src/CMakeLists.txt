@@ -8,6 +8,8 @@ add_executable(search_hnsw search_hnsw.cpp)
 
 add_executable(search_ivf search_ivf.cpp)
 
+add_executable(binery_search_parameter binery_search_parameter.cpp)
+
 add_executable(logger_hnsw_pca logger_hnsw_pca.cpp)
 
 add_executable(logger_ivf_pca logger_ivf_pca.cpp)

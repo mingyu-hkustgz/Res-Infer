@@ -49,6 +49,10 @@ public:
     ResultHeap
     search_with_pca(float *query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
 
+    ResultHeap search_with_learned_pca_lp(float *query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
+
+    ResultHeap search_with_learned_pca_l2(float *query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
+
     std::vector<std::tuple<unsigned, float, float> > search_logger(float *query, size_t k, size_t nprobe) const;
 
     void reorder_square() const;
@@ -310,6 +314,168 @@ ResultHeap IVF::search_with_pca(float *query, size_t k, size_t nprobe, float dis
                 }
                 cur_dist++;
             }
+        }
+    }
+
+    delete[] centroid_dist;
+    delete[] dist;
+    delete[] candidates;
+    delete[] obj;
+    return KNNs;
+}
+
+
+ResultHeap IVF::search_with_learned_pca_lp(float *query, size_t k, size_t nprobe, float distK) const{
+    // the default value of distK is +inf and IVF++
+    Result *centroid_dist = new Result[C];
+    PCA->get_query_square(query);
+    // Find out the closest N_{probe} centroids to the query vector.
+    for (int i = 0; i < C; i++) {
+#ifdef COUNT_DIST_TIME
+        StopW stopw = StopW();
+#endif
+        centroid_dist[i].first = sqr_dist(query, centroids + i * D, D);
+#ifdef COUNT_DIST_TIME
+        adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+        centroid_dist[i].second = i;
+    }
+
+    // Find out the closest N_{probe} centroids to the query vector.
+    std::partial_sort(centroid_dist, centroid_dist + nprobe, centroid_dist + C);
+
+    size_t ncan = 0;
+    for (int i = 0; i < nprobe; i++)
+        ncan += len[centroid_dist[i].second];
+    float *dist = new float[ncan];
+    Result *candidates = new Result[ncan];
+    int *obj = new int[ncan];
+
+    // Scan a few initial dimensions and store the distances.
+    // For IVF (i.e., apply FDScanning), it should be D.
+    // For IVF+ (i.e., apply ADSampling without optimizing data layout), it should be 0.
+    // For IVF++ (i.e., apply ADSampling with optimizing data layout), it should be delta_d (i.e., 32).
+    int cur = 0;;
+    for (int i = 0; i < nprobe; i++) {
+        int cluster_id = centroid_dist[i].second;
+        for (int j = 0; j < len[cluster_id]; j++) {
+            size_t can = start[cluster_id] + j;
+#ifdef COUNT_DIST_TIME
+            StopW stopw = StopW();
+#endif
+            float tmp_dist = PCA->get_pre_sum(can) -2 * naive_lp_dist_calc(query, L1_data + can * d, d);
+#ifdef COUNT_DIST_TIME
+            adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+            dist[cur] = tmp_dist;
+            obj[cur] = can;
+            cur++;
+        }
+    }
+    ResultHeap KNNs;
+
+    // d < D indicates ADSampling with and without cache-level optimization
+    auto cur_dist = dist;
+    for (int i = 0; i < nprobe; i++) {
+        int cluster_id = centroid_dist[i].second;
+        for (int j = 0; j < len[cluster_id]; j++) {
+            size_t can = start[cluster_id] + j;
+#ifdef COUNT_DIST_TIME
+            StopW stopw = StopW();
+#endif
+            float tmp_dist = PCA->learned_fast_inference_lp(query + d, res_data + can * (D - d), distK, d,
+                                                         *cur_dist);
+#ifdef COUNT_DIST_TIME
+            adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+            if (tmp_dist > 0) {
+                KNNs.emplace(tmp_dist, id[can]);
+                if (KNNs.size() > k) KNNs.pop();
+            }
+            if (KNNs.size() == k && KNNs.top().first < distK) {
+                distK = KNNs.top().first;
+            }
+            cur_dist++;
+        }
+    }
+
+    delete[] centroid_dist;
+    delete[] dist;
+    delete[] candidates;
+    delete[] obj;
+    return KNNs;
+}
+
+ResultHeap IVF::search_with_learned_pca_l2(float *query, size_t k, size_t nprobe, float distK) const{
+    // the default value of distK is +inf and IVF++
+    Result *centroid_dist = new Result[C];
+    // Find out the closest N_{probe} centroids to the query vector.
+    for (int i = 0; i < C; i++) {
+#ifdef COUNT_DIST_TIME
+        StopW stopw = StopW();
+#endif
+        centroid_dist[i].first = sqr_dist(query, centroids + i * D, D);
+#ifdef COUNT_DIST_TIME
+        adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+        centroid_dist[i].second = i;
+    }
+
+    // Find out the closest N_{probe} centroids to the query vector.
+    std::partial_sort(centroid_dist, centroid_dist + nprobe, centroid_dist + C);
+
+    size_t ncan = 0;
+    for (int i = 0; i < nprobe; i++)
+        ncan += len[centroid_dist[i].second];
+    float *dist = new float[ncan];
+    Result *candidates = new Result[ncan];
+    int *obj = new int[ncan];
+
+    // Scan a few initial dimensions and store the distances.
+    // For IVF (i.e., apply FDScanning), it should be D.
+    // For IVF+ (i.e., apply ADSampling without optimizing data layout), it should be 0.
+    // For IVF++ (i.e., apply ADSampling with optimizing data layout), it should be delta_d (i.e., 32).
+    int cur = 0;;
+    for (int i = 0; i < nprobe; i++) {
+        int cluster_id = centroid_dist[i].second;
+        for (int j = 0; j < len[cluster_id]; j++) {
+            size_t can = start[cluster_id] + j;
+#ifdef COUNT_DIST_TIME
+            StopW stopw = StopW();
+#endif
+            float tmp_dist = naive_l2_dist_calc(query, L1_data + can * d, d);
+#ifdef COUNT_DIST_TIME
+            adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+            dist[cur] = tmp_dist;
+            obj[cur] = can;
+            cur++;
+        }
+    }
+    ResultHeap KNNs;
+
+    // d < D indicates ADSampling with and without cache-level optimization
+    auto cur_dist = dist;
+    for (int i = 0; i < nprobe; i++) {
+        int cluster_id = centroid_dist[i].second;
+        for (int j = 0; j < len[cluster_id]; j++) {
+            size_t can = start[cluster_id] + j;
+#ifdef COUNT_DIST_TIME
+            StopW stopw = StopW();
+#endif
+            float tmp_dist = PCA->learned_fast_inference_l2(query + d, res_data + can * (D - d), distK, d,
+                                                            *cur_dist);
+#ifdef COUNT_DIST_TIME
+            adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+            if (tmp_dist > 0) {
+                KNNs.emplace(tmp_dist, id[can]);
+                if (KNNs.size() > k) KNNs.pop();
+            }
+            if (KNNs.size() == k && KNNs.top().first < distK) {
+                distK = KNNs.top().first;
+            }
+            cur_dist++;
         }
     }
 
