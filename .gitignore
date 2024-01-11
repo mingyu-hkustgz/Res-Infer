@@ -17,6 +17,3 @@ data/__pycache__/
 to_tex1.py
 to_tex.py
 to_tex2.py
-test_hnsw_log.cpp
-test_seperate_log.cpp
-test_learned_inference.cpp

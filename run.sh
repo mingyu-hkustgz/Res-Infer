@@ -2,13 +2,13 @@ bash make_dir.sh
 
 cd ./script
 
-#bash pre_compute.sh
+bash pre_compute.sh
 
 #bash index_ivf.sh
 
-#bash index_hnsw.sh
+bash index_hnsw.sh
 
-#bash index_pca.sh
+bash index_pca.sh
 
 bash linear.sh
 

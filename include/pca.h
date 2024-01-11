@@ -215,7 +215,7 @@ namespace Index_PCA {
 #ifdef COUNT_DIMENSION
                 adsampling::tot_dimension += learn_res_dim;
 #endif
-                res -= 2 * naive_lp_dist_calc(p, q, base_dim);
+                res -= 2 * naive_lp_dist_calc(p, q, learn_res_dim);
                 if (res > thresh_dist) return -res;
             }
             return res;
