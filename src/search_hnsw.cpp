@@ -141,15 +141,16 @@ int main(int argc, char *argv[]) {
     char query_path[256] = "";
     char groundtruth_path[256] = "";
     char result_path[256] = "";
-    char dataset[256] = "";
     char transformation_path[256] = "";
     int randomize = 0;
     char square_path[256] = "";
     char linear_path[256] = "";
     int subk = 100;
+    int delta_d = 32;
+    float epsilon0 = 8.0;
 
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "d:k:e:p:i:q:g:r:t:p:v:s:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:k:e:p:i:q:g:r:t:p:v:s:l:", longopts, &ind);
         switch (iarg) {
             case 'd':
                 if (optarg)randomize = atoi(optarg);
@@ -158,10 +159,10 @@ int main(int argc, char *argv[]) {
                 if (optarg)subk = atoi(optarg);
                 break;
             case 'e':
-                if (optarg)adsampling::epsilon0 = atof(optarg);
+                if (optarg)epsilon0 = atof(optarg);
                 break;
             case 'p':
-                if (optarg)adsampling::delta_d = atoi(optarg);
+                if (optarg) delta_d = atoi(optarg);
                 break;
             case 'i':
                 if (optarg)strcpy(index_path, optarg);
@@ -181,6 +182,9 @@ int main(int argc, char *argv[]) {
             case 'v':
                 if (optarg)strcpy(square_path, optarg);
                 break;
+            case 'l':
+                if (optarg)strcpy(linear_path, optarg);
+                break;
             case 's':
                 if (optarg) efSearch = atoi(optarg);
                 break;
@@ -198,19 +202,34 @@ int main(int argc, char *argv[]) {
         Q = mul(Q, P);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         adsampling::D = Q.d;
-    } else if (7 <= randomize && randomize <= 8) {
+    } else if (randomize == 4) {
         std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
         auto PCA = new Index_PCA::PCA(appr_alg->cur_element_count, Q.d);
-        PCA->sigma_count = 8;
-        PCA->base_dim = 32;
+        PCA->load_linear_model(linear_path);
+        PCA->base_dim = delta_d;
         PCA->load_project_matrix(transformation_path);
-        PCA->load_base_square(square_path);
         appr_alg->PCA = PCA;
         appr_alg->PCA->dimension_ = Q.d;
-        appr_alg->reorder_square();
-        if (randomize == 7) appr_alg->reorganized_data_aligned();
         StopW stopw = StopW();
-        PCA->project_vector(Q.data, Q.n);
+        PCA->project_vector(Q.data, Q.n, true);
+        rotation_time = stopw.getElapsedTimeMicro() / Q.n;
+        std::cerr << "rotate time:: " << rotation_time << endl;
+    } else if (5 <= randomize && randomize <= 8) {
+        std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
+        bool learned = false;
+        auto PCA = new Index_PCA::PCA(appr_alg->cur_element_count, Q.d);
+        PCA->sigma_count = epsilon0;
+        PCA->base_dim = delta_d;
+        PCA->load_project_matrix(transformation_path);
+        if (5 <= randomize && randomize <= 6) {
+            PCA->load_linear_model(linear_path);
+            learned = true;
+        }
+        appr_alg->PCA = PCA;
+        appr_alg->compute_base_square(learned);
+        if (randomize == 5 || randomize == 7) appr_alg->reorganized_data_aligned();
+        StopW stopw = StopW();
+        PCA->project_vector(Q.data, Q.n, learned);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         std::cerr << "rotate time:: " << rotation_time << endl;
     }

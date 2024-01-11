@@ -49,13 +49,15 @@ public:
     ResultHeap
     search_with_pca(float *query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
 
-    ResultHeap search_with_learned_pca_lp(float *query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
+    ResultHeap search_with_learned_pca_lp(float *query, size_t k, size_t nprobe,
+                                          float distK = std::numeric_limits<float>::max()) const;
 
-    ResultHeap search_with_learned_pca_l2(float *query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
+    ResultHeap search_with_learned_pca_l2(float *query, size_t k, size_t nprobe,
+                                          float distK = std::numeric_limits<float>::max()) const;
 
     std::vector<std::tuple<unsigned, float, float> > search_logger(float *query, size_t k, size_t nprobe) const;
 
-    void reorder_square() const;
+    void compute_base_square(bool learned) const;
 
     void save(char *filename);
 
@@ -278,7 +280,7 @@ ResultHeap IVF::search_with_pca(float *query, size_t k, size_t nprobe, float dis
 #ifdef COUNT_DIST_TIME
             StopW stopw = StopW();
 #endif
-            float tmp_dist = -2 * naive_lp_dist_calc(query, L1_data + can * d, d);
+            float tmp_dist = PCA->get_pre_sum(can) - 2 * naive_lp_dist_calc(query, L1_data + can * d, d);
 #ifdef COUNT_DIST_TIME
             adsampling::distance_time += stopw.getElapsedTimeMicro();
 #endif
@@ -301,7 +303,7 @@ ResultHeap IVF::search_with_pca(float *query, size_t k, size_t nprobe, float dis
                 StopW stopw = StopW();
 #endif
                 float tmp_dist = PCA->uniform_fast_inference(query + d, res_data + can * (D - d), distK, d,
-                                                             *cur_dist + PCA->get_pre_sum(can));
+                                                             *cur_dist);
 #ifdef COUNT_DIST_TIME
                 adsampling::distance_time += stopw.getElapsedTimeMicro();
 #endif
@@ -325,7 +327,7 @@ ResultHeap IVF::search_with_pca(float *query, size_t k, size_t nprobe, float dis
 }
 
 
-ResultHeap IVF::search_with_learned_pca_lp(float *query, size_t k, size_t nprobe, float distK) const{
+ResultHeap IVF::search_with_learned_pca_lp(float *query, size_t k, size_t nprobe, float distK) const {
     // the default value of distK is +inf and IVF++
     Result *centroid_dist = new Result[C];
     PCA->get_query_square(query);
@@ -363,7 +365,7 @@ ResultHeap IVF::search_with_learned_pca_lp(float *query, size_t k, size_t nprobe
 #ifdef COUNT_DIST_TIME
             StopW stopw = StopW();
 #endif
-            float tmp_dist = PCA->get_pre_sum(can) -2 * naive_lp_dist_calc(query, L1_data + can * d, d);
+            float tmp_dist = PCA->get_pre_sum(can) - 2 * naive_lp_dist_calc(query, L1_data + can * d, d);
 #ifdef COUNT_DIST_TIME
             adsampling::distance_time += stopw.getElapsedTimeMicro();
 #endif
@@ -383,8 +385,8 @@ ResultHeap IVF::search_with_learned_pca_lp(float *query, size_t k, size_t nprobe
 #ifdef COUNT_DIST_TIME
             StopW stopw = StopW();
 #endif
-            float tmp_dist = PCA->learned_fast_inference_lp(query + d, res_data + can * (D - d), distK, d,
-                                                         *cur_dist);
+            float tmp_dist = PCA->learned_fast_inference_lp(query + d, res_data + can * (D - d), distK, 1,
+                                                            *cur_dist);
 #ifdef COUNT_DIST_TIME
             adsampling::distance_time += stopw.getElapsedTimeMicro();
 #endif
@@ -406,7 +408,7 @@ ResultHeap IVF::search_with_learned_pca_lp(float *query, size_t k, size_t nprobe
     return KNNs;
 }
 
-ResultHeap IVF::search_with_learned_pca_l2(float *query, size_t k, size_t nprobe, float distK) const{
+ResultHeap IVF::search_with_learned_pca_l2(float *query, size_t k, size_t nprobe, float distK) const {
     // the default value of distK is +inf and IVF++
     Result *centroid_dist = new Result[C];
     // Find out the closest N_{probe} centroids to the query vector.
@@ -443,7 +445,7 @@ ResultHeap IVF::search_with_learned_pca_l2(float *query, size_t k, size_t nprobe
 #ifdef COUNT_DIST_TIME
             StopW stopw = StopW();
 #endif
-            float tmp_dist = naive_l2_dist_calc(query, L1_data + can * d, d);
+            float tmp_dist = sqr_dist(query, L1_data + can * d, d);
 #ifdef COUNT_DIST_TIME
             adsampling::distance_time += stopw.getElapsedTimeMicro();
 #endif
@@ -463,7 +465,7 @@ ResultHeap IVF::search_with_learned_pca_l2(float *query, size_t k, size_t nprobe
 #ifdef COUNT_DIST_TIME
             StopW stopw = StopW();
 #endif
-            float tmp_dist = PCA->learned_fast_inference_l2(query + d, res_data + can * (D - d), distK, d,
+            float tmp_dist = PCA->learned_fast_inference_l2(query + d, res_data + can * (D - d), distK, 1,
                                                             *cur_dist);
 #ifdef COUNT_DIST_TIME
             adsampling::distance_time += stopw.getElapsedTimeMicro();
@@ -528,15 +530,6 @@ std::vector<std::tuple<unsigned, float, float> > IVF::search_logger(float *query
 }
 
 
-void IVF::reorder_square() const {
-    std::vector<float> tmp(N, 0);
-    for (int i = 0; i < N; i++) {
-        tmp[i] = PCA->base_square[id[i]];
-    }
-    for (int i = 0; i < N; i++) PCA->base_square[i] = tmp[i];
-}
-
-
 void IVF::save(char *filename) {
     std::ofstream output(filename, std::ios::binary);
 
@@ -586,4 +579,34 @@ void IVF::load(char *filename) {
     input.read((char *) id, N * sizeof(size_t));
 
     input.close();
+}
+
+
+void IVF::compute_base_square(bool learned) const {
+    PCA->base_square = new float[N];
+    float *extra = PCA->extra_mean;
+    float *tmp_L1 = L1_data, *tmp_res = res_data;
+    for (int i = 0; i < N; i++) {
+        float square = 0.0;
+        for (int j = 0; j < d; j++) {
+            if (!learned) tmp_L1[j] -= extra[j];
+            square += tmp_L1[j] * tmp_L1[j];
+        }
+        for (int j = 0; j < D - d; j++) {
+            if (!learned) tmp_res[j] -= extra[j + d];
+            square += tmp_res[j] * tmp_res[j];
+        }
+        PCA->base_square[i] = square;
+        tmp_L1 += d;
+        tmp_res += (D - d);
+    }
+    if (!learned) {
+        float *tmp_centroid = centroids;
+        for (int i = 0; i < C; i++) {
+            for (int j = 0; j < D; j++) {
+                tmp_centroid[j] -= extra[j];
+            }
+            tmp_centroid += D;
+        }
+    }
 }

@@ -32,23 +32,17 @@ namespace Index_PCA {
                 fin >> W_[i] >> B_[i] >> b_[i];
             }
             learn_res_dim = dimension_ % base_dim;
-            fix_dim = dimension_ - uni_res_dim;
-            std::cerr << fix_dim << " " << uni_res_dim << " " << num << std::endl;
+            fix_dim = dimension_ - learn_res_dim;
+            std::cerr << " fix dim:: " << fix_dim << " res dim:: " << learn_res_dim << " linear count:: " << num
+                      << std::endl;
             fin.close();
-            if (base_square != nullptr) {
-                for (int i = 0; i < num; i++) {
-                    W_[i] *= -2.0;
-                    B_[i] *= -2.0;
-                    b_[i] *= -2.0;
-                }
-            }
         }
 
 
         /*
          * note that we do not add feature normalization
          */
-        void project_vector(float *raw_data, unsigned num) const {
+        void project_vector(float *raw_data, unsigned num, bool learned = false) const {
             Eigen::MatrixXf Q(num, dimension_);
             for (int i = 0; i < num; i++) {
                 for (int j = 0; j < dimension_; j++) {
@@ -58,7 +52,10 @@ namespace Index_PCA {
             Q = Q * X_;
             for (int i = 0; i < num; i++) {
                 for (int j = 0; j < dimension_; j++) {
-                    raw_data[i * dimension_ + j] = Q(i, j);
+                    if (!learned)
+                        raw_data[i * dimension_ + j] = Q(i, j) - extra_mean[j];
+                    else
+                        raw_data[i * dimension_ + j] = Q(i, j);
                 }
             }
         }
@@ -67,13 +64,16 @@ namespace Index_PCA {
             float *raw_data;
             unsigned hybrid, project_dim;
             load_float_data(filename, raw_data, hybrid, project_dim);
-            unsigned origin_dim = hybrid - 2;
+            unsigned origin_dim = hybrid - 3;
             std::cerr << "origin dim:: " << origin_dim << std::endl;
             dimension_ = origin_dim;
             mean_ = new float[origin_dim];
+            extra_mean = new float[origin_dim];
             var = new float[origin_dim];
             pre_query = new float[origin_dim + 1];
             for (int i = 0; i < origin_dim; i++) mean_[i] = raw_data[i];
+            raw_data = raw_data + origin_dim;
+            for (int i = 0; i < origin_dim; i++) extra_mean[i] = raw_data[i];
             raw_data = raw_data + origin_dim;
             for (int i = 0; i < origin_dim; i++) var[i] = raw_data[i];
             float *matrix = raw_data + origin_dim;
@@ -261,7 +261,7 @@ namespace Index_PCA {
         Eigen::MatrixXd vec, val;
         int base_dim = 32, dimension_, uni_res_dim, learn_res_dim, fix_dim;
         unsigned nd_;
-        float *mean_ = nullptr, *var = nullptr, *base_square = nullptr, *pre_query = nullptr;
+        float *mean_ = nullptr, *extra_mean = nullptr, *var = nullptr, *base_square = nullptr, *pre_query = nullptr;
         float sigma_count = 3.0, query_square = 0;
 
         std::vector<float> W_, B_, b_;

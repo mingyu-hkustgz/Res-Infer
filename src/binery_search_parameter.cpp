@@ -15,7 +15,7 @@ const int MAXK = 100;
 
 long double rotation_time = 0;
 unsigned count_bound = 10000;
-double recall = 0.999;
+double recall = 0.995;
 
 int main(int argc, char *argv[]) {
 
@@ -43,7 +43,6 @@ int main(int argc, char *argv[]) {
     opterr = 1;    //getopt error message (off: 0)
 
     char query_path[256] = "";
-    char square_path[256] = "";
     char groundtruth_path[256] = "";
     char result_path[256] = "";
     char data_path[256] = "";
@@ -53,7 +52,7 @@ int main(int argc, char *argv[]) {
     int subk = 100;
 
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "d:k:e:v:n:q:g:r:t:l:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:k:e:n:q:g:r:t:l:", longopts, &ind);
         switch (iarg) {
             case 'd':
                 if (optarg)randomize = atoi(optarg);
@@ -63,9 +62,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 'e':
                 if (optarg)recall = atof(optarg);
-                break;
-            case 'v':
-                if (optarg)strcpy(square_path, optarg);
                 break;
             case 'n':
                 if (optarg)strcpy(data_path, optarg);
@@ -96,8 +92,20 @@ int main(int argc, char *argv[]) {
     auto PCA = new Index_PCA::PCA(N.n, N.d);
     PCA->base_dim = 32;
     PCA->load_project_matrix(transformation_path);
-    PCA->load_base_square(square_path);
-    PCA->project_vector(Q.data, Q.n);
+
+    if (randomize == 1) {
+        PCA->base_square = new float[N.n];
+        float *tmp_base = N.data;
+        for (int i = 0; i < N.n; i++) {
+            float res = 0.0;
+            for (int j = 0; j < N.d; j++) {
+                res += tmp_base[j] * tmp_base[j];
+            }
+            PCA->base_square[i] = res;
+            tmp_base += N.d;
+        }
+    }
+    PCA->project_vector(Q.data, Q.n, true);
     unsigned sub_dim = 32;
     unsigned model_count = Q.d / sub_dim;
     PCA->model_count = model_count;
@@ -109,7 +117,8 @@ int main(int argc, char *argv[]) {
         unsigned int *gt = G.data + i * G.d;
         float *p = N.data + gt[subk - 1] * Q.d;
         float thresh_dist = naive_l2_dist_calc(p, q, Q.d);
-        PCA->get_query_square(q);
+        if (randomize == 1)
+            PCA->get_query_square(q);
         for (int j = 0; j < subk; j++) {
             p = N.data + gt[j] * Q.d;
             float app_dist;
