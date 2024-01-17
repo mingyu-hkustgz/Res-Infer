@@ -25,7 +25,10 @@ if __name__ == "__main__":
     mean = np.mean(base, axis=0)
     base -= mean
     pca = PCA(n_components=pca_dim)
-    pca.fit(base)
+    if N < 10000000:
+        pca.fit(base)
+    else:
+        pca.fit(base[:10000000])
     # save the transpose matrix
     projection_matrix = pca.components_.T
     base = np.dot(base, projection_matrix)

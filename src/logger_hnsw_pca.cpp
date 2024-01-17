@@ -12,6 +12,7 @@
 #include <utils.h>
 #include <hnswlib/hnswlib.h>
 #include <adsampling.h>
+#include "pq.h"
 #include "pca.h"
 #include <getopt.h>
 
@@ -151,7 +152,7 @@ int main(int argc, char *argv[]) {
     Index_PCA::PCA PCA(appr_alg->cur_element_count, Q.d);
     PCA.load_project_matrix(transformation_path);
     count_bound = std::min(count_bound, (unsigned) Q.n);
-    PCA.project_vector(Q.data, count_bound);
+    PCA.project_vector(Q.data, count_bound, true);
     appr_alg->PCA = &PCA;
 
     cerr << "test begin" << endl;
@@ -184,14 +185,12 @@ int main(int argc, char *argv[]) {
             unsigned L1_id = id_to_L1[gt[j]];
             float acc_dist = naive_l2_dist_calc(q, (float *) appr_alg->getDataByInternalId(L1_id), Q.d);
             float app_dist = 0;
-            float res_dist = 0;
             unsigned app_count = 0;
             auto *p = (float *) appr_alg->getDataByInternalId(L1_id);
             for (unsigned k = 0; k < Q.d; k += sub_dim) {
-//                if (k + sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d % sub_dim);
-//                else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
-                res_dist = naive_lp_dist_calc(q + k, p + k, (Q.d - k));
-                app[app_count].push_back(res_dist);
+                if (k + sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d % sub_dim);
+                else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
+                app[app_count].push_back(app_dist);
                 app_count++;
             }
             acc.push_back(acc_dist);
@@ -210,15 +209,12 @@ int main(int argc, char *argv[]) {
             if (KNNmap[L1_id]) continue;
             float node_dist = get<1>(u);
             float app_dist = 0;
-            float res_dist = 0;
             unsigned app_count = 0;
             auto *p = (float *) appr_alg->getDataByInternalId(L1_id);
             for (unsigned k = 0; k < Q.d; k += sub_dim) {
-//                if (k + sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d % sub_dim);
-//                else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
-//                app[app_count].push_back(app_dist);
-                res_dist = naive_lp_dist_calc(q + k, p + k, (Q.d - k));
-                app[app_count].push_back(res_dist);
+                if (k + sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d % sub_dim);
+                else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
+                app[app_count].push_back(app_dist);
                 app_count++;
             }
             acc.push_back(node_dist);
@@ -256,5 +252,24 @@ int main(int argc, char *argv[]) {
     }
     out.close();
 
+    double exp_recall = 1.0 - (1.0 - recall) / (model_count - 1.0);
+    double cur_recall = 1.0;
+    std::cerr << "save finished with recall:: " << recall << " " << exp_recall << endl;
+    if (isFileExists_ifstream((linear_path))) {
+        PCA.count_base = count_bound * subk;
+        PCA.load_linear_model(linear_path);
+        std::ofstream fout(linear_path);
+        fout.setf(ios::fixed, ios::floatfield);
+        fout.precision(6);
+        fout << PCA.model_count << endl;
+        for (int i = 0; i < PCA.model_count; i++) {
+            cur_recall *= exp_recall;
+            std::cerr << cur_recall << endl;
+            PCA.recall = cur_recall;
+            if (i == PCA.model_count - 1) PCA.recall = 1;
+            PCA.binary_search_single_linear(acc.size(), app[i].data(), acc.data(), thresh.data(), i);
+            fout << PCA.W_[i] << " " << PCA.B_[i] << " " << PCA.b_[i] << endl;
+        }
+    }
     return 0;
 }

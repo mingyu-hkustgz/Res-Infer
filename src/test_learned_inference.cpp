@@ -118,8 +118,8 @@ int main(int argc, char *argv[]) {
     PCA.load_linear_model(linear_path);
     ivf.PCA = &PCA;
     if (randomize == 1) ivf.compute_base_square(true);
-    PCA.project_vector(Q.data, count_bound,true);
-    count_bound = std::min(count_bound, (unsigned) Q.n);
+    PCA.project_vector(Q.data, G.n,true);
+    count_bound = std::min(count_bound, (unsigned) G.n);
     std::cerr << "uni res :: " << PCA.uni_res_dim << endl;
     cerr << "test begin" << endl;
 
@@ -138,46 +138,100 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < ivf.N; i++) {
         id_to_L1[ivf.id[i]] = i;
     }
-    unsigned base_count = subk * 1000, bad_count = 0, test_bad_count = 0;
-    for (int i = 0; i < 1000; i++) {
-        float *q = Q.data + i * Q.d;
+    unsigned base_count = subk * Q.n, bad_count = 0, test_bad_count = 0;
+    cerr.setf(ios::fixed, ios::floatfield);
+    for (int i = 0; i < G.n; i++) {
+        float *q = Q.data + (long long)i * Q.d;
         if (randomize == 1) PCA.get_query_square(q);
-        unsigned int *gt = G.data + i * G.d;
-        float thresh_dist = naive_l2_dist_calc(q, ivf.res_data + id_to_L1[gt[subk - 1]] * Q.d, Q.d);
+        unsigned int *gt = G.data + (long long)i * G.d;
+        float thresh_dist = naive_l2_dist_calc(q, ivf.res_data + (long long)id_to_L1[gt[subk - 1]] * Q.d, Q.d);
         thresh_dist += 1e-6;
         for (int j = 0; j < subk; j++) {
             unsigned L1_id = id_to_L1[gt[j]];
-            float acc_dist = naive_l2_dist_calc(q, ivf.res_data + L1_id * Q.d, Q.d);
-            float pre_sum, PCA_infer, app_dist;
+            float acc_dist = naive_l2_dist_calc(q, ivf.res_data + (long long)L1_id * Q.d, Q.d);
+            float pre_sum=0, PCA_infer=0, app_dist=0;
             if (randomize == 1) {
                 pre_sum = PCA.get_pre_sum(L1_id);
-                PCA_infer = PCA.learned_fast_inference_lp(q, ivf.res_data + L1_id * Q.d, thresh_dist, 0, pre_sum);
+                PCA_infer = PCA.learned_fast_inference_lp(q, ivf.res_data + (long long)L1_id * Q.d, thresh_dist, 0, pre_sum);
             } else {
-                PCA_infer = PCA.learned_fast_inference_l2(q, ivf.res_data + L1_id * Q.d, thresh_dist, 0, 0);
+                PCA_infer = PCA.learned_fast_inference_l2(q, ivf.res_data + (long long)L1_id * Q.d, thresh_dist, 0, 0);
             }
-            if (PCA_infer < 0)
+            if (PCA_infer < 0) {
                 test_bad_count++;
+            }
             int tag_model = 0;
-//            for (int cur_dim = 32; cur_dim <= Q.d; cur_dim += 32) {
-//                if (randomize == 1) app_dist = pre_sum - 2 * naive_lp_dist_calc(q, ivf.res_data + L1_id * Q.d, cur_dim);
-//                else app_dist = naive_l2_dist_calc(q, ivf.res_data + L1_id * Q.d, cur_dim);
-//                std::cerr << thresh_dist << " " << app_dist << " pca infer:: " << PCA_infer
-//                          << PCA.pre_query[cur_dim - 1] << " cur dim:: "
-//                          << cur_dim << endl;
-//                if (PCA.learned_inference(app_dist, thresh_dist, tag_model)) {
-//                    bad_count++;
-//                    break;
-//                }
-//                tag_model++;
-//            }
+            if (randomize == 1) app_dist = pre_sum - 2 * naive_lp_dist_calc(q, ivf.res_data + (long long)L1_id * Q.d, 32);
+            else app_dist = naive_l2_dist_calc(q, ivf.res_data + (long long)L1_id * Q.d, 32);
+            if (PCA.learned_inference(app_dist, thresh_dist, tag_model)) {
+                std::cerr << thresh_dist << " " << app_dist << " pca infer:: " << PCA_infer
+                          << PCA.pre_query[32 - 1] << " cur dim:: "
+                          << 32 << endl;
+                bad_count++;
+            }
+
             acc.push_back(acc_dist);
             thresh.push_back(thresh_dist);
             KNNmap[L1_id] = true;
         }
     }
+    std::cerr<<test_bad_count<<" "<<bad_count<<std::endl;
     std::cerr << (float) bad_count / (float) base_count << endl;
     std::cerr << (float) test_bad_count / (float) base_count << endl;
     std::cerr << sub_dim << endl;
 
     return 0;
 }
+/*
+2990041
+2839327
+2396998
+4044757
+1059040
+2448423
+137296
+3832834
+221424
+84715
+4554515
+835509
+2404906
+1053978
+3849554
+4501317
+4614042
+1082855
+3245291
+4637969
+4857822
+3180780
+4897271
+2361401
+4146983
+2915903
+2639442
+3539428
+3979792
+2643408
+3244183
+1210958
+1954581
+2418816
+4331463
+398768
+4284324
+2834997
+3207182
+3735149
+284579
+4684644
+1104878
+3713051
+1040343
+706787
+2440484
+308892
+3876534
+856094
+3659778
+414045
+ */

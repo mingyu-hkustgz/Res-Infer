@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
                 if (optarg)subk = atoi(optarg);
                 break;
             case 'e':
-                if (optarg)recall = atof(optarg);
+                if (optarg) recall = atof(optarg);
                 break;
             case 'p':
                 if (optarg)adsampling::delta_d = atoi(optarg);
@@ -130,26 +130,23 @@ int main(int argc, char *argv[]) {
 
     IVF ivf;
     ivf.load(index_path);
-    Index_PCA::PCA PCA(ivf.N, ivf.D);
-    PCA.load_project_matrix(transformation_path);
+    Index_PQ::Quantizer PQ(ivf.N, ivf.D);
+    PQ.load_product_codebook(codebook_path);
+    PQ.load_project_matrix(transformation_path);
     count_bound = std::min(count_bound, (unsigned) Q.n);
-    PCA.project_vector(Q.data, count_bound, true);
-    ivf.PCA = &PCA;
-
+    PQ.project_vector(Q.data, count_bound);
+    ivf.PQ = &PQ;
+    ivf.encoder_origin_data();
     cerr << "test begin" << endl;
 
     auto res = test_logger(Q, ivf, subk);
-    std::vector<float> acc, thresh;
-    std::vector<std::vector<float> > app;
-    std::unordered_map<unsigned, bool> KNNmap;
-    std::vector<unsigned> id_to_L1;
 
-    unsigned sub_dim = 32;
-    unsigned feature_dim = 2, model_count = Q.d / sub_dim;
-    if (Q.d % sub_dim) model_count++;
+    std::vector<float> acc, app, thresh, cluster;
+    std::vector<unsigned> id_to_L1;
+    std::unordered_map<unsigned, bool> KNNmap;
+    unsigned feature_dim = 3, model_count = 1;
     feature_dim += model_count;
-    std::cerr << "feature dim:: " << feature_dim << " models:: " << model_count << " sub dim:: " << sub_dim << endl;
-    app.resize(model_count);
+    std::cerr << "feature dim:: " << feature_dim << " models:: " << model_count << endl;
     id_to_L1.resize(ivf.N);
     for (int i = 0; i < ivf.N; i++) {
         id_to_L1[ivf.id[i]] = i;
@@ -157,48 +154,38 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < count_bound; i++) {
         float *q = Q.data + i * Q.d;
         unsigned int *gt = G.data + i * G.d;
-        float thresh_dist = naive_l2_dist_calc(q, ivf.res_data + id_to_L1[gt[subk - 1]] * Q.d, Q.d);
+        ivf.PQ->calc_dist_map(q);
+        float thresh_dist = naive_l2_dist_calc(q, ivf.L1_data + id_to_L1[gt[subk - 1]] * Q.d, Q.d);
         for (int j = 0; j < subk; j++) {
             unsigned L1_id = id_to_L1[gt[j]];
-            float acc_dist = naive_l2_dist_calc(q, ivf.res_data + L1_id * Q.d, Q.d);
-            float app_dist = 0;
-            unsigned app_count = 0;
-            auto *p = (float *) ivf.res_data + L1_id * Q.d;
-            for (unsigned k = 0; k < Q.d; k += sub_dim) {
-                if (k + sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d % sub_dim);
-                else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
-                app[app_count].push_back(app_dist);
-                app_count++;
-            }
+            float acc_dist = naive_l2_dist_calc(q,ivf.L1_data + L1_id * Q.d, Q.d);
+            float app_dist = ivf.PQ->naive_product_map_dist(L1_id);
+            float cluster_dist = ivf.PQ->node_cluster_dist_[L1_id];
+            app.push_back(app_dist);
             acc.push_back(acc_dist);
+            cluster.push_back(cluster_dist);
             thresh.push_back(thresh_dist);
             KNNmap[L1_id] = true;
         }
     }
 
-    std::cerr << sub_dim << endl;
-
     for (int i = 0; i < count_bound; i++) {
         float *q = Q.data + i * Q.d;
         unsigned int *gt = G.data + i * G.d;
-        float thresh_dist = naive_l2_dist_calc(q, ivf.res_data + id_to_L1[gt[subk - 1]] * Q.d, Q.d);
+        ivf.PQ->calc_dist_map(q);
+        float thresh_dist = naive_l2_dist_calc(q, ivf.L1_data + id_to_L1[gt[subk - 1]] * Q.d, Q.d);
         for (auto u: res[i]) {
             unsigned L1_id = get<0>(u);
-            if (KNNmap[L1_id]) continue;
-            float node_dist = get<1>(u);
-            float app_dist = 0;
-            unsigned app_count = 0;
-            float *p = ivf.res_data + L1_id * Q.d;
-            for (unsigned k = 0; k < Q.d; k += sub_dim) {
-                if (k + sub_dim > Q.d) app_dist += naive_l2_dist_calc(q + k, p + k, Q.d % sub_dim);
-                else app_dist += naive_l2_dist_calc(q + k, p + k, sub_dim);
-                app[app_count].push_back(app_dist);
-                app_count++;
-            }
-            acc.push_back(node_dist);
+            if(KNNmap[L1_id]) continue;
+            float acc_dist = get<1>(u);
+            float app_dist = ivf.PQ->naive_product_map_dist(L1_id);
+            float cluster_dist = ivf.PQ->node_cluster_dist_[L1_id];
+            app.push_back(app_dist);
+            acc.push_back(acc_dist);
+            cluster.push_back(cluster_dist);
             thresh.push_back(thresh_dist);
         }
-        if (acc.size() > elements_bound) break;
+        if(acc.size() > elements_bound) break;
     }
 
     std::ofstream out(logger_path, std::ios::binary);
@@ -207,9 +194,8 @@ int main(int argc, char *argv[]) {
         if (acc[tag] < (double) thresh[tag] + 1e-8) {
             out.write((char *) &feature_dim, sizeof(unsigned));
             out.write((char *) &acc[tag], sizeof(float));
-            for (int j = 0; j < model_count; j++) {
-                out.write((char *) &app[j][tag], sizeof(float));
-            }
+            out.write((char *) &app[tag], sizeof(float));
+            out.write((char *) &cluster[tag], sizeof(float));
             out.write((char *) &thresh[tag], sizeof(float));
             knn_count++;
         }
@@ -217,37 +203,29 @@ int main(int argc, char *argv[]) {
     std::cerr << knn_count << endl;
     static std::default_random_engine Engine;
     static std::uniform_int_distribution<unsigned> rand(0, acc.size());
-    for (int tag = 0; tag < std::min((unsigned long) 5000000, acc.size()); tag++) {
+    for (int tag = 0; tag < std::min((unsigned long) elements_bound, acc.size()); tag++) {
         unsigned rand_index = rand(Engine);
         if (acc[rand_index] > thresh[rand_index]) {
             out.write((char *) &feature_dim, sizeof(unsigned));
             out.write((char *) &acc[rand_index], sizeof(float));
-            for (int j = 0; j < model_count; j++) {
-                out.write((char *) &app[j][rand_index], sizeof(float));
-            }
+            out.write((char *) &app[rand_index], sizeof(float));
+            out.write((char *) &cluster[rand_index], sizeof(float));
             out.write((char *) &thresh[rand_index], sizeof(float));
         }
     }
     out.close();
+    std::cerr << "save finished" << endl;
 
-    double exp_recall = 1.0 - (1.0 - recall) / (model_count - 1.0);
-    double cur_recall = 1.0;
-    std::cerr << "save finished with recall:: " << recall << " " << exp_recall << endl;
     if (isFileExists_ifstream((linear_path))) {
-        PCA.count_base = count_bound * subk;
-        PCA.load_linear_model(linear_path);
+        PQ.count_base = count_bound * subk;
+        PQ.recall = recall;
+        PQ.load_linear_model(linear_path);
         std::ofstream fout(linear_path);
         fout.setf(ios::fixed, ios::floatfield);
         fout.precision(6);
-        fout << PCA.model_count << endl;
-        for (int i = 0; i < PCA.model_count; i++) {
-            cur_recall *= exp_recall;
-            std::cerr << cur_recall << endl;
-            PCA.recall = cur_recall;
-            if (i == PCA.model_count - 1) PCA.recall = 1;
-            PCA.binary_search_single_linear(acc.size(), app[i].data(), acc.data(), thresh.data(), i);
-            fout << PCA.W_[i] << " " << PCA.B_[i] << " " << PCA.b_[i] << endl;
-        }
+        fout << PQ.model_count << endl;
+        PQ.binary_search_multi_linear(acc.size(), app.data(), acc.data(), cluster.data(), thresh.data());
+        fout << PQ.W_[0] << " " << PQ.W_[1] << " " << PQ.B_[0] << endl;
     }
     return 0;
 }

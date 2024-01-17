@@ -15,10 +15,6 @@ namespace Index_PCA {
         }
 
 
-        /*
-         *
-         */
-
         void load_linear_model(char *filename) {
             if (!isFileExists_ifstream(filename)) return;
             std::ifstream fin(filename);
@@ -89,12 +85,6 @@ namespace Index_PCA {
             }
         }
 
-        void load_base_square(const char *filename) {
-            unsigned points_num, dim;
-            load_float_data(filename, base_square, points_num, dim);
-            std::cerr << "square num:: " << dim << endl;
-        }
-
         void get_query_square(const float *q) {
             query_square = 0;
             for (int i = 0; i < dimension_; i++) {
@@ -125,7 +115,7 @@ namespace Index_PCA {
 
         __attribute__((always_inline))
         inline float get_pre_sum(unsigned id) const {
-            float res = base_square[id] + query_square;
+            float res = base_square[id] + query_square + 1e-5;
             return res;
         }
 

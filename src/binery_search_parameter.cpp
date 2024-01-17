@@ -105,22 +105,23 @@ int main(int argc, char *argv[]) {
             tmp_base += N.d;
         }
     }
-    PCA->project_vector(Q.data, Q.n, true);
+    PCA->project_vector(Q.data, G.n, true);
     unsigned sub_dim = 32;
     unsigned model_count = Q.d / sub_dim;
     PCA->model_count = model_count;
     if (Q.d % sub_dim) model_count++;
     app.resize(model_count);
     std::cerr << "test begin" << std::endl;
-    for (int i = 0; i < count_bound; i++) {
-        float *q = Q.data + i * Q.d;
-        unsigned int *gt = G.data + i * G.d;
-        float *p = N.data + gt[subk - 1] * Q.d;
+    count_bound = std::min(count_bound, (unsigned) G.n);
+    for (long long i = 0; i < count_bound; i++) {
+        float *q = Q.data + (long long) i * Q.d;
+        unsigned int *gt = G.data + (long long) i * G.d;
+        float *p = N.data + (long long) gt[subk - 1] * Q.d;
         float thresh_dist = naive_l2_dist_calc(p, q, Q.d);
         if (randomize == 1)
             PCA->get_query_square(q);
         for (int j = 0; j < subk; j++) {
-            p = N.data + gt[j] * Q.d;
+            p = N.data + (long long) gt[j] * Q.d;
             float app_dist;
             float acc_dist = naive_l2_dist_calc(p, q, Q.d);
             if (randomize == 1) app_dist = PCA->get_pre_sum(gt[j]);
@@ -173,8 +174,13 @@ int main(int argc, char *argv[]) {
         std::cerr << exp_recall << endl;
         PCA->recall = exp_recall;
         PCA->count_base = count_base;
-        if (i == PCA->model_count - 1) PCA->recall = 1;
-        PCA->binary_search_single_linear(acc.size(), app[i].data(), acc.data(), thresh.data(), i);
+        if (i == PCA->model_count - 1) {
+            PCA->W_[model_count - 1] = 1.0;
+            PCA->B_[model_count - 1] = 0;
+            PCA->b_[model_count - 1] = 0;
+        } else {
+            PCA->binary_search_single_linear(acc.size(), app[i].data(), acc.data(), thresh.data(), i);
+        }
         fout << PCA->W_[i] << " " << PCA->B_[i] << " " << PCA->b_[i] << endl;
     }
     return 0;

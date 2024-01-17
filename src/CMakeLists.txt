@@ -14,6 +14,10 @@ add_executable(logger_hnsw_pca logger_hnsw_pca.cpp)
 
 add_executable(logger_ivf_pca logger_ivf_pca.cpp)
 
+add_executable(logger_hnsw_opq logger_hnsw_opq.cpp)
+
+add_executable(logger_ivf_opq logger_ivf_opq.cpp)
+
 add_executable(test_seperate_log test_seperate_log.cpp)
 
 add_executable(test_learned_inference test_learned_inference.cpp)

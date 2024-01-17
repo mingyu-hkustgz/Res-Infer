@@ -14,16 +14,16 @@ for K in {20,100}; do
       sigma=12
     elif [ $data == "_msong" ]; then
       efSearch=30
-      sigma=8
+      sigma=12
     elif [ $data == "_word2vec" ]; then
       efSearch=500
-      sigma=8
+      sigma=12
     elif [ $data == "_glove2.2m" ]; then
       efSearch=500
       sigma=8
     elif [ $data == "gist" ]; then
       efSearch=250
-      sigma=8
+      sigma=10
     elif [ $data == "deep1M" ]; then
       efSearch=100
       sigma=8
@@ -61,25 +61,19 @@ for K in {20,100}; do
       ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch} &
     done
 
-    index="${index_path}/${data}_ef500_M16_pca.index"
-    trans="${temp_data}/${data}_pca_matrix.fvecs"
-    randomize=4
-    res="${result_path}/${data}_ad_hnsw_${randomize}.log"
-    linear="${index_path}/linear/linear_${K}_l2.log"
-    ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -l ${linear} -k ${K} -s ${efSearch} &
 
     index="${index_path}/${data}_ef500_M16_pca.index"
     trans="${temp_data}/${data}_pca_matrix.fvecs"
-    randomize=5
-    res="${result_path}/${data}_ad_hnsw_${randomize}.log"
-    linear="${index_path}/linear/linear_${K}_ip.log"
+    randomize=6
+    res="${result_path}/${data}_ad_hnsw_5.log"
+    linear="${index_path}/linear/linear_${K}_l2.log"
     ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -l ${linear} -k ${K} -s ${efSearch} &
 
     index="${index_path}/${data}_ef500_M16_pca.index"
     trans="${temp_data}/${data}_pca_matrix.fvecs"
     randomize=6
     res="${result_path}/${data}_ad_hnsw_${randomize}.log"
-    linear="${index_path}/linear/linear_${K}_ip.log"
+    linear="${index_path}/linear/linear_hnsw1_pca_${K}.log"
     ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -l ${linear} -k ${K} -s ${efSearch} &
 
     index="${index_path}/${data}_ef500_M16_pca.index"
@@ -93,6 +87,24 @@ for K in {20,100}; do
     randomize=8
     res="${result_path}/${data}_ad_hnsw_${randomize}.log"
     ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -e ${sigma} -k ${K} -s ${efSearch} &
+
+    wait
+
+    index="${index_path}/${data}_ef500_M16_opq.index"
+    trans="${temp_data}/${data}_opq_matrix.fvecs"
+    randomize=3
+    code="${temp_data}/${data}_codebook.centroid"
+    res="${result_path}/${data}_ad_hnsw_${randomize}.log"
+    linear="${index_path}/linear/linear_hnsw1_opq_${K}.log"
+    ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -b ${code} -g ${gnd} -r ${res} -t ${trans} -l ${linear} -k ${K} -s ${efSearch}
+
+    index="${index_path}/${data}_ef500_M16_opq.index"
+    trans="${temp_data}/${data}_opq_matrix.fvecs"
+    randomize=4
+    code="${temp_data}/${data}_codebook.centroid"
+    res="${result_path}/${data}_ad_hnsw_${randomize}.log"
+    linear="${index_path}/linear/linear_hnsw1_opq_${K}.log"
+    ./cmake-build-debug/src/search_hnsw -d ${randomize} -i ${index} -q ${query} -b ${code} -g ${gnd} -r ${res} -t ${trans} -l ${linear} -k ${K} -s ${efSearch}
 
   done
   wait

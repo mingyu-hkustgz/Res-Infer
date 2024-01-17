@@ -142,6 +142,7 @@ int main(int argc, char *argv[]) {
     char groundtruth_path[256] = "";
     char result_path[256] = "";
     char transformation_path[256] = "";
+    char codebook_path[256] = "";
     int randomize = 0;
     char square_path[256] = "";
     char linear_path[256] = "";
@@ -150,7 +151,7 @@ int main(int argc, char *argv[]) {
     float epsilon0 = 8.0;
 
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "d:k:e:p:i:q:g:r:t:p:v:s:l:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:k:e:p:b:i:q:g:r:t:p:v:s:l:", longopts, &ind);
         switch (iarg) {
             case 'd':
                 if (optarg)randomize = atoi(optarg);
@@ -163,6 +164,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'p':
                 if (optarg) delta_d = atoi(optarg);
+                break;
+            case 'b':
+                if (optarg)strcpy(codebook_path, optarg);
                 break;
             case 'i':
                 if (optarg)strcpy(index_path, optarg);
@@ -202,7 +206,20 @@ int main(int argc, char *argv[]) {
         Q = mul(Q, P);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         adsampling::D = Q.d;
-    } else if (randomize == 4) {
+    } else if (3 <= randomize && randomize <= 4) {
+        std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
+        auto PQ = new Index_PQ::Quantizer(appr_alg->cur_element_count, Q.d);
+        PQ->load_product_codebook(codebook_path);
+        PQ->load_project_matrix(transformation_path);
+        PQ->load_linear_model(linear_path);
+        appr_alg->PQ = PQ;
+        appr_alg->encoder_origin_data();
+        StopW stopw = StopW();
+        PQ->project_vector(Q.data, Q.n);
+        rotation_time = stopw.getElapsedTimeMicro() / Q.n;
+        adsampling::D = Q.d;
+        std::cerr << "rotate time:: " << rotation_time << endl;
+    } else if (5 <= randomize && randomize <= 6) {
         std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
         auto PCA = new Index_PCA::PCA(appr_alg->cur_element_count, Q.d);
         PCA->load_linear_model(linear_path);
@@ -210,26 +227,26 @@ int main(int argc, char *argv[]) {
         PCA->load_project_matrix(transformation_path);
         appr_alg->PCA = PCA;
         appr_alg->PCA->dimension_ = Q.d;
+        PCA->load_linear_model(linear_path);
+        if (randomize == 5){
+            appr_alg->compute_base_square(true);
+            appr_alg->reorganized_data_aligned();
+        }
         StopW stopw = StopW();
         PCA->project_vector(Q.data, Q.n, true);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         std::cerr << "rotate time:: " << rotation_time << endl;
-    } else if (5 <= randomize && randomize <= 8) {
+    } else if (7 <= randomize && randomize <= 8) {
         std::cerr << appr_alg->cur_element_count << " " << Q.d << std::endl;
-        bool learned = false;
         auto PCA = new Index_PCA::PCA(appr_alg->cur_element_count, Q.d);
         PCA->sigma_count = epsilon0;
         PCA->base_dim = delta_d;
         PCA->load_project_matrix(transformation_path);
-        if (5 <= randomize && randomize <= 6) {
-            PCA->load_linear_model(linear_path);
-            learned = true;
-        }
         appr_alg->PCA = PCA;
-        appr_alg->compute_base_square(learned);
-        if (randomize == 5 || randomize == 7) appr_alg->reorganized_data_aligned();
+        appr_alg->compute_base_square(false);
+        if (randomize == 7) appr_alg->reorganized_data_aligned();
         StopW stopw = StopW();
-        PCA->project_vector(Q.data, Q.n, learned);
+        PCA->project_vector(Q.data, Q.n, false);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         std::cerr << "rotate time:: " << rotation_time << endl;
     }

@@ -50,8 +50,16 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
                 KNNs = ivf.search_with_learned_pca_l2(Q.data + i * Q.d, k, nprobe);
             else if (randomize == 4)
                 KNNs = ivf.search_with_learned_pca_lp(Q.data + i * Q.d, k, nprobe);
-            else if (5 <= randomize && randomize <= 6)
+            else if (randomize == 5)
                 KNNs = ivf.search_with_pca(Q.data + i * Q.d, k, nprobe);
+            else if (randomize == 6) {
+#ifdef USE_SSE
+                KNNs = ivf.search_with_quantizer_simd(Q.data + i * Q.d, k, nprobe);
+#else
+                KNNs = ivf.search_with_quantizer(Q.data + i * Q.d, k, nprobe);
+#endif
+            }
+
             GetCurTime(&run_end);
             GetTime(&run_start, &run_end, &usr_t, &sys_t);
             total_time += usr_t * 1e6;
@@ -103,14 +111,14 @@ int main(int argc, char *argv[]) {
     char groundtruth_path[256] = "";
     char result_path[256] = "";
     char transformation_path[256] = "";
-    char square_path[256] = "";
+    char codebook_path[256] = "";
     char linear_path[256] = "";
     int delta_d = 32;
     float epsilon0 = 8.0;
     int subk = 100;
 
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "d:k:e:p:i:q:g:r:t:p:n:v:s:l:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:k:e:p:i:b:q:g:r:t:p:n:s:l:", longopts, &ind);
         switch (iarg) {
             case 'd':
                 if (optarg)randomize = atoi(optarg);
@@ -127,6 +135,9 @@ int main(int argc, char *argv[]) {
             case 'i':
                 if (optarg)strcpy(index_path, optarg);
                 break;
+            case 'b':
+                if (optarg)strcpy(codebook_path, optarg);
+                break;
             case 'q':
                 if (optarg)strcpy(query_path, optarg);
                 break;
@@ -138,9 +149,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 't':
                 if (optarg)strcpy(transformation_path, optarg);
-                break;
-            case 'v':
-                if (optarg)strcpy(square_path, optarg);
                 break;
             case 'l':
                 if (optarg)strcpy(linear_path, optarg);
@@ -172,7 +180,7 @@ int main(int argc, char *argv[]) {
         PCA->project_vector(Q.data, Q.n, true);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         std::cerr << "rotate time:: " << rotation_time << std::endl;
-    } else if (5 <= randomize && randomize <= 6) {
+    } else if (randomize==5) {
         auto PCA = new Index_PCA::PCA(ivf.N, Q.d);
         PCA->sigma_count = epsilon0;
         PCA->base_dim = delta_d;
@@ -183,7 +191,19 @@ int main(int argc, char *argv[]) {
         PCA->project_vector(Q.data, Q.n);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         std::cerr << "rotate time:: " << rotation_time << std::endl;
+    } else if(randomize==6){
+        auto PQ = new Index_PQ::Quantizer(ivf.N,Q.d);
+        PQ->load_product_codebook(codebook_path);
+        PQ->load_project_matrix(transformation_path);
+        PQ->load_linear_model(linear_path);
+        ivf.PQ = PQ;
+        ivf.encoder_origin_data();
+        StopW stopw = StopW();
+        PQ->project_vector(Q.data, Q.n);
+        rotation_time = stopw.getElapsedTimeMicro() / Q.n;
+        std::cerr << "rotate time:: " << rotation_time << std::endl;
     }
+
     freopen(result_path, "a", stdout);
     test(Q, G, ivf, subk);
     return 0;

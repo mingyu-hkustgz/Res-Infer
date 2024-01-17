@@ -53,3 +53,14 @@ if __name__ == '__main__':
         index.train(X)
         centroids = index.quantizer.reconstruct_n(0, index.nlist)
         fvecs_write(centroids_path, centroids)
+    elif method == 'opq':
+        data_path = f'./DATA/{dataset}/{dataset}_base_{method}.fvecs'
+        centroids_path = f"./DATA/{dataset}/{dataset}_centroid_{method}.fvecs"
+        X = fvecs_read(data_path)
+        D = X.shape[1]
+        # cluster data vectors
+        index = faiss.index_factory(D, f"IVF{K},Flat")
+        index.verbose = True
+        index.train(X)
+        centroids = index.quantizer.reconstruct_n(0, index.nlist)
+        fvecs_write(centroids_path, centroids)
