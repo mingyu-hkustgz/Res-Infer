@@ -148,18 +148,26 @@ int main(int argc, char *argv[]) {
     Eigen::VectorXf Y = Eigen::Map<Eigen::VectorXf, Eigen::Unaligned>(acc.data(), acc.size());
     float y_mean = Y.mean();
     for (int i = 0; i < model_count; i++) {
-        Eigen::VectorXf X = Eigen::Map<Eigen::VectorXf, Eigen::Unaligned>(app[i].data(), app[i].size());
-        float x_mean = X.mean();
-        // compute OLS
-        Eigen::VectorXf X_centered = X.array() - x_mean;
-        Eigen::VectorXf Y_centered = Y.array() - y_mean;
-        float w = (X_centered.cwiseProduct(Y_centered).sum()) / (X_centered.cwiseProduct(X_centered).sum());
-        float b = y_mean - w * x_mean;
-        std::cerr << "OLS w: " << w << std::endl;
-        std::cerr << "OLS b: " << b << std::endl;
-        PCA->W_[i] = w;
-        PCA->B_[i] = b;
-        PCA->b_[i] = b;
+        if(randomize==0)
+        {
+            Eigen::VectorXf X = Eigen::Map<Eigen::VectorXf, Eigen::Unaligned>(app[i].data(), app[i].size());
+            float x_mean = X.mean();
+            // compute OLS
+            Eigen::VectorXf X_centered = X.array() - x_mean;
+            Eigen::VectorXf Y_centered = Y.array() - y_mean;
+            float w = (X_centered.cwiseProduct(Y_centered).sum()) / (X_centered.cwiseProduct(X_centered).sum());
+            float b = y_mean - w * x_mean;
+            std::cerr << "OLS w: " << w << std::endl;
+            std::cerr << "OLS b: " << b << std::endl;
+            PCA->W_[i] = w;
+            PCA->B_[i] = b;
+            PCA->b_[i] = b;
+        }else{
+            PCA->W_[i] = 1.0;
+            PCA->B_[i] = 0;
+            PCA->b_[i] = 0;
+        }
+
     }
     std::cerr << " models:: " << model_count << " sub dim:: " << sub_dim << endl;
     std::cerr << "target recall:: " << recall << endl;
