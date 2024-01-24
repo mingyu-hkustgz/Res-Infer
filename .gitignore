@@ -13,6 +13,7 @@ __pycharm__
 *.png
 *.jpg
 *.index
+build/
 result_*
 data/__pycache__/
 to_tex1.py
