@@ -2538,7 +2538,7 @@ namespace hnswlib {
                 float dist_to_centroid = 0.0;
                 for (int j = 0; j < PQ->sub_vector; j++) {
                     uint8_t belong = 0;
-                    float dist = naive_l2_dist_calc((float *) getDataByInternalId(i), PQ->pq_book[j][0].data(),
+                    float dist = naive_l2_dist_calc((float *) getDataByInternalId(i) + j * PQ->sub_dim, PQ->pq_book[j][0].data(),
                                                     PQ->sub_dim);
                     for (int k = 1; k < PQ->sub_cluster_count; k++) {
                         float new_dist = naive_l2_dist_calc((float *) getDataByInternalId(i) + j * PQ->sub_dim,
