@@ -58,7 +58,7 @@ for K in {20,100}; do
       gnd="${data_path}/${data}_groundtruth.ivecs"
       trans="${index_path}/O.fvecs"
 
-      #./cmake-build-debug/src/search_ivf -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch} &
+      ./cmake-build-debug/src/search_ivf -d ${randomize} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -k ${K} -s ${efSearch}
 
     done
 
@@ -69,7 +69,7 @@ for K in {20,100}; do
     gnd="${data_path}/${data}_groundtruth.ivecs"
     trans="${index_path}/${data}_pca_matrix.fvecs"
     linear="${index_path}/linear/linear_ivf_pca_${K}.log"
-    #./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -l ${linear} -k ${K} -s ${efSearch} &
+    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -l ${linear} -k ${K} -s ${efSearch}
 
     randomize=4
     res="${result_path}/${data}_ad_ivf_${randomize}.log"
@@ -78,7 +78,7 @@ for K in {20,100}; do
     gnd="${data_path}/${data}_groundtruth.ivecs"
     trans="${index_path}/${data}_pca_matrix.fvecs"
     linear="${index_path}/linear/linear_${K}_ip.log"
-    #./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -l ${linear} -k ${K} -s ${efSearch} &
+    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -l ${linear} -k ${K} -s ${efSearch}
 
     randomize=5
     res="${result_path}/${data}_ad_ivf_${randomize}.log"
@@ -87,9 +87,8 @@ for K in {20,100}; do
     query="${data_path}/${data}_query.fvecs"
     gnd="${data_path}/${data}_groundtruth.ivecs"
     trans="${index_path}/${data}_pca_matrix_${K}.fvecs"
-    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -e ${sigma} -k ${K} -s ${efSearch} &
+    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -q ${query} -g ${gnd} -r ${res} -t ${trans} -e ${sigma} -k ${K} -s ${efSearch}
 
-    wait
 
     randomize=6
     res="${result_path}/${data}_ad_ivf_${randomize}.log"
@@ -99,8 +98,7 @@ for K in {20,100}; do
     gnd="${data_path}/${data}_groundtruth.ivecs"
     trans="${index_path}/${data}_opq_matrix.fvecs"
     linear="${index_path}/linear/linear_ivf_opq_${K}.log"
-    #./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -b ${code} -q ${query} -g ${gnd} -r ${res} -t ${trans} -l ${linear} -k ${K} -s ${efSearch}
+    ./cmake-build-debug/src/search_ivf -d ${randomize} -n ${data} -i ${index} -b ${code} -q ${query} -g ${gnd} -r ${res} -t ${trans} -l ${linear} -k ${K} -s ${efSearch}
 
   done
-  wait
 done

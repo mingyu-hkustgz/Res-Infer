@@ -29,7 +29,7 @@ if __name__ == "__main__":
         query_num = int(1e3)
         split_num = int(1e5)
         base_data = origin_data[:-split_num]
-        learn_data = origin_data[-split_num:query_num]
+        learn_data = origin_data[-split_num:-query_num]
         query_data = origin_data[-query_num:]
 
         gt = do_compute_gt(base_data, query_data, topk=100)
