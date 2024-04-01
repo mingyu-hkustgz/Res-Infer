@@ -5,7 +5,7 @@ import os
 from utils import fvecs_read, fvecs_write
 import argparse
 
-source = '/home/BLD/mingyu/DATA/vector_data/'
+source = '/home/yming/DATA/vector_data'
 M = 64
 nbits = 8
 

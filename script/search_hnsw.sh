@@ -31,8 +31,8 @@ for K in {20,100}; do
       efSearch=50
       sigma=8
     elif [ $data == "deep100M" ]; then
-      efSearch=500
-      sigma=8
+      efSearch=200
+      sigma=12
     fi
 
     data_path=${store_path}/${data}

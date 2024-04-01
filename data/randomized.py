@@ -3,7 +3,7 @@ import numpy as np
 import struct
 from utils import fvecs_write, fvecs_read
 import argparse
-source = '/home/DATA/vector_data'
+source = '/home/yming/DATA/vector_data'
 
 def Orthogonal(D):
     G = np.random.randn(D, D).astype('float32')

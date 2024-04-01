@@ -8,7 +8,7 @@ import argparse
 from scipy.stats import norm
 from tqdm import tqdm
 
-source = '/home/BLD/mingyu/DATA/vector_data'
+source = '/home/yming/DATA/vector_data'
 
 
 def load_multi_model(file_name):

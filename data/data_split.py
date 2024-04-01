@@ -4,7 +4,7 @@ import os
 import numpy as np
 import faiss
 
-source = '/home/DATA/vector_data/'
+source = '/home/yming/DATA/vector_data'
 datasets = ['sift10m','tiny5m','glove2.2m','word2vec']
 
 
@@ -25,9 +25,9 @@ if __name__ == "__main__":
         origin_data = fvecs_read(base_path)
         np.random.shuffle(origin_data)
         origin_num = origin_data.shape[0]
-        learn_num = int(1e5) - int(1e3)
+        learn_num = int(1e4) - int(1e3)
         query_num = int(1e3)
-        split_num = int(1e5)
+        split_num = int(1e4 + 1e3)
         base_data = origin_data[:-split_num]
         learn_data = origin_data[-split_num:-query_num]
         query_data = origin_data[-query_num:]

@@ -5,7 +5,7 @@ import os
 import argparse
 import struct
 
-source = '/home/BLD/mingyu/DATA/vector_data'
+source = '/home/yming/DATA/vector_data'
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='random projection')

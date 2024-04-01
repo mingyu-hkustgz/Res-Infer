@@ -4,7 +4,7 @@ import struct
 import os
 from utils import fvecs_write, fvecs_read
 import argparse
-source = '/home/DATA/vector_data'
+source = '/home/yming/DATA/vector_data'
 pre_source = './DATA'
 # the number of clusters
 K = 4096

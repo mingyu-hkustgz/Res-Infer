@@ -129,7 +129,7 @@ namespace Index_PCA {
                 if (uniform_inference(res, threshold, cur)) return -res;
             }
             while (cur < fix_dim) {
-                res -= 2 * naive_lp_dist_calc(p, q, base_dim);
+                res -= 2 * ip_dist(p, q, base_dim);
                 p += base_dim;
                 q += base_dim;
                 cur += base_dim;
@@ -192,7 +192,7 @@ namespace Index_PCA {
                 cur += base_dim;
             }
             for (; cur <= fix_dim; cur += base_dim) {
-                res -= 2 * naive_lp_dist_calc(p, q, base_dim);
+                res -= 2 * ip_dist(p, q, base_dim);
                 p += base_dim;
                 q += base_dim;
 #ifdef COUNT_DIMENSION

@@ -4,7 +4,7 @@ import os
 import numpy as np
 import faiss
 
-source = '/home/DATA/vector_data/'
+source = '/home/yming/DATA/vector_data'
 datasets = ['gist']
 
 

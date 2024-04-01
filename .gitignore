@@ -15,6 +15,10 @@ __pycharm__
 *.index
 build/
 result_*
+results-big
+results-naive
+results-sse
+results/
 data/__pycache__/
 to_tex1.py
 to_tex.py

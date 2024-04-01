@@ -254,7 +254,7 @@ inline float naive_lp_dist_calc(const float *p, const float *q, const unsigned d
 
 __attribute__((always_inline))
 inline float sse_l2_dist_calc(const float *pVect1, const float *pVect2, const unsigned qty) {
-    float __attribute__((aligned(32))) TmpRes[8];
+    float __attribute__((aligned(32))) TmpRes[4];
     size_t qty4 = qty >> 2;
 
     const float *pEnd1 = pVect1 + (qty4 << 2);
@@ -274,6 +274,28 @@ inline float sse_l2_dist_calc(const float *pVect1, const float *pVect2, const un
     return TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3];
 }
 
+
+__attribute__((always_inline))
+inline float sse_ip_dist_calc(const float *pVect1, const float *pVect2, const unsigned qty) {
+    float __attribute__((aligned(32))) TmpRes[4];
+    size_t qty4 = qty >> 2;
+
+    const float *pEnd1 = pVect1 + (qty4 << 2);
+
+    __m128 v1, v2;
+    __m128 sum = _mm_set1_ps(0);
+
+    while (pVect1 < pEnd1) {
+        v1 = _mm_loadu_ps(pVect1);
+        pVect1 += 4;
+        v2 = _mm_loadu_ps(pVect2);
+        pVect2 += 4;
+        sum = _mm_add_ps(sum, _mm_mul_ps(v1, v2));
+    }
+    _mm_store_ps(TmpRes, sum);
+    return TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3];
+}
+
 bool isFileExists_ifstream(const char *name) {
     std::ifstream f(name);
     return f.good();
@@ -285,5 +307,14 @@ float sqr_dist(float *a, float *b, int D) {
     return sse_l2_dist_calc(a, b, D);
 #else
     return naive_l2_dist_calc(a,b,D);
+#endif
+}
+
+__attribute__((always_inline))
+float ip_dist(float *a, float *b, int D) {
+#if defined(USE_SSE)
+    return sse_ip_dist_calc(a, b, D);
+#else
+    return naive_lp_dist_calc(a,b,D);
 #endif
 }

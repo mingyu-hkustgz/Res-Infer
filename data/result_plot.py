@@ -5,7 +5,7 @@ import os
 import struct
 from tqdm import tqdm
 
-source = '/home/BLD/mingyu/DATA/vector_data'
+source = '/home/yming/DATA/vector_data'
 datasets = ['gist']
 
 hnsw_marker = ['o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o']

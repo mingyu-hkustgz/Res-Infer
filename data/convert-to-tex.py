@@ -4,9 +4,9 @@ import os
 import struct
 from tqdm import tqdm
 
-source = '/home/BLD/mingyu/DATA/vector_data'
-datasets = ['_sift10m', 'gist', 'deep1M', '_tiny5m', '_glove2.2m', '_word2vec']
-method = 'naive'
+source = '/home/yming/DATA/vector_data'
+datasets = ["_sift10m", "gist", "deep1M", "_tiny5m", "_glove2.2m", "_word2vec"]
+method = 'sse'
 marker = ['o', 'triangle', 'square', 'otimes', 'star', 'diamond', 'pentagon', 'oplus', 'asterisk']
 
 
@@ -24,7 +24,7 @@ def load_result_data(filename):
 
 
 if __name__ == "__main__":
-    out_put_file = open(f"result_tex_{method}.txt", "w")
+    out_put_file = open(f"result_tex_{method}.log", "w")
     count = 0
     for dataset in datasets:
         print(f"visual - {dataset}")
@@ -48,10 +48,13 @@ if __name__ == "__main__":
         if dataset == "_tiny5m":
             real_data = "TINY"
             base_log = 100
+        if dataset == "deep100M":
+            real_data = "DEEP100M"
+            base_log = 100
 
         for K in [20, 100]:
             plt.figure(figsize=(12, 8))
-            file_path = f"./results/recall@{K}/{dataset}"
+            file_path = f"./results-{method}/recall@{K}/{dataset}"
             if not os.path.exists(file_path):
                 continue
             print("% " + dataset + "@" + str(K), file=out_put_file)
@@ -70,45 +73,48 @@ xmajorgrids=true,
 grid style=dashed,
 ]''', file=out_put_file)
             for i in range(9):
-                result_path = f"./results/recall@{K}/{dataset}/{dataset}_ad_hnsw_{i}.log"
+                result_path = f"./results-{method}/recall@{K}/{dataset}/{dataset}_ad_hnsw_{i}.log"
                 if not os.path.exists(result_path):
                     continue
                 recall, Qps = load_result_data(result_path)
                 if i == 0:
                     print(
-                        f"\\addplot[line width=0.15mm,color=amaranth,mark={marker[i]},mark size=0.5mm]%hnsw {dataset}",
+                        f"\\addplot[line width=0.15mm,color=amaranth,mark=o,mark size=0.5mm]%hnsw {dataset}",
                         file=out_put_file)
                 elif i == 1:
-                    print(f"\\addplot[line width=0.15mm,color=amber,mark={marker[i]},mark size=0.5mm]%hnsw++ {dataset}",
+                    print(f"\\addplot[line width=0.15mm,color=amber,mark=triangle,mark size=0.5mm]%hnsw++ {dataset}",
                           file=out_put_file)
                 elif i == 2:
+                    continue
                     print(f"\\addplot[line width=0.15mm,color=black,mark={marker[i]},mark size=0.5mm]%hnsw+ {dataset}",
                           file=out_put_file)
                 elif i == 3:
                     if method == "sse":
                         continue
                     print(
-                        f"\\addplot[line width=0.15mm,color=forestgreen,mark={marker[i]},mark size=0.5mm]%hnsw-opq {dataset}",
+                        f"\\addplot[line width=0.15mm,color=forestgreen,mark=otimes,mark size=0.5mm]%hnsw-opq {dataset}",
                         file=out_put_file)
                 elif i == 4:
-                    if method == "naive":
+                    if method == "naive" or method == "big":
                         continue
                     print(
-                        f"\\addplot[line width=0.15mm,color=forestgreen,mark={marker[i]},mark size=0.5mm]%hnsw-opq-sse {dataset}",
+                        f"\\addplot[line width=0.15mm,color=forestgreen,mark=otimes,mark size=0.5mm]%hnsw-opq-sse {dataset}",
                         file=out_put_file)
                 elif i == 5:
+                    continue
                     print(
                         f"\\addplot[line width=0.15mm,color=aliceblue,mark={marker[i]},mark size=0.5mm]%hnsw-learn-pca {dataset}",
                         file=out_put_file)
                 elif i == 6:
                     print(
-                        f"\\addplot[line width=0.15mm,color=airforceblue,mark={marker[i]},mark size=0.5mm]%hnsw-learn-pca {dataset}",
+                        f"\\addplot[line width=0.15mm,color=airforceblue,mark=pentagon,mark size=0.5mm]%hnsw-learn-pca {dataset}",
                         file=out_put_file)
                 elif i == 7:
                     print(
-                        f"\\addplot[line width=0.15mm,color=navy,mark={marker[i]},mark size=0.5mm]%hnsw-res-infer++ {dataset}",
+                        f"\\addplot[line width=0.15mm,color=navy,mark=oplus,mark size=0.5mm]%hnsw-res-infer++ {dataset}",
                         file=out_put_file)
                 elif i == 8:
+                    continue
                     print(
                         f"\\addplot[line width=0.15mm,color=violate,mark={marker[i]},mark size=0.5mm]%hnsw-res-infer {dataset}",
                         file=out_put_file)
@@ -143,31 +149,32 @@ xmajorgrids=true,
 grid style=dashed,
 ]''', file=out_put_file)
             for i in range(7):
-                result_path = f"./results/recall@{K}/{dataset}/{dataset}_ad_ivf_{i}.log"
+                result_path = f"./results-{method}/recall@{K}/{dataset}/{dataset}_ad_ivf_{i}.log"
                 if not os.path.exists(result_path):
                     continue
                 recall, Qps = load_result_data(result_path)
                 if i == 0:
-                    print(f"\\addplot[line width=0.15mm,color=red,mark={marker[i]},mark size=0.5mm]%ivf {dataset}",
+                    print(f"\\addplot[line width=0.15mm,color=red,mark=o,mark size=0.5mm]%ivf {dataset}",
                           file=out_put_file)
                 elif i == 1:
-                    print(f"\\addplot[line width=0.15mm,color=orange,mark={marker[i]},mark size=0.5mm]%ivf++ {dataset}",
+                    print(f"\\addplot[line width=0.15mm,color=orange,mark=triangle,mark size=0.5mm]%ivf++ {dataset}",
                           file=out_put_file)
                 elif i == 3:
                     print(
-                        f"\\addplot[line width=0.15mm,color=airforceblue,mark={marker[i]},mark size=0.5mm]%ivf-learn-pca++ {dataset}",
+                        f"\\addplot[line width=0.15mm,color=airforceblue,mark=otimes,mark size=0.5mm]%ivf-learn-pca++ {dataset}",
                         file=out_put_file)
                 elif i == 4:
+                    continue
                     print(
                         f"\\addplot[line width=0.15mm,color=navy,mark={marker[i]},mark size=0.5mm]%ivf-learn-pca++ {dataset}",
                         file=out_put_file)
                 elif i == 5:
                     print(
-                        f"\\addplot[line width=0.15mm,color=violate,mark={marker[i]},mark size=0.5mm]%ivf-res++ {dataset}",
+                        f"\\addplot[line width=0.15mm,color=violate,mark=diamond,mark size=0.5mm]%ivf-res++ {dataset}",
                         file=out_put_file)
                 elif i == 6:
                     print(
-                        f"\\addplot[line width=0.15mm,color=forestgreen,mark={marker[i]},mark size=0.5mm]%ivf-opq {dataset}",
+                        f"\\addplot[line width=0.15mm,color=forestgreen,mark=pentagon,mark size=0.5mm]%ivf-opq {dataset}",
                         file=out_put_file)
                 print("plot coordinates {", file=out_put_file)
                 for j in range(len(recall)):

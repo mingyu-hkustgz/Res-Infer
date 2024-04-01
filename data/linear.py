@@ -7,7 +7,7 @@ from utils import fvecs_read
 import argparse
 from tqdm import tqdm
 
-source = '/home/BLD/mingyu/DATA/vector_data'
+source = '/home/yming/DATA/vector_data'
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='linear regression')
     parser.add_argument('-d', '--dataset', help='dataset', default='deep1M')

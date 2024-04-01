@@ -5,7 +5,7 @@ import os
 import struct
 from tqdm import tqdm
 
-source = '/home/BLD/mingyu/DATA/vector_data'
+source = '/home/yming/DATA/vector_data'
 datasets = ['gist']
 method_type = "pca"
 method_dim = "32"
