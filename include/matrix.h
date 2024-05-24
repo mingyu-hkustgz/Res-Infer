@@ -39,6 +39,9 @@ public:
     
     void mul(const Matrix<T> &A, Matrix<T> &result) const;
     float dist(size_t a, const Matrix<T> &B, size_t b) const;
+    T* operator[](int row){
+        return data + (row * d);
+    }
 };
 
 template <typename T>

@@ -21,6 +21,7 @@ We have included detailed comments in these functions.
 #include "hnswlib.h"
 //#include "adasampling.h"
 #include "adsampling.h"
+#include "finger.h"
 #include <atomic>
 #include <random>
 #include <stdlib.h>
@@ -1334,6 +1335,186 @@ namespace hnswlib {
             return answers;
         }
 
+        template <bool has_deletions, bool collect_metrics=false>
+        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
+        searchBaseLayerFINGER(tableint ep_id, const void *data_point, size_t ef) const {
+            VisitedList *vl = visited_list_pool_->getFreeVisitedList();
+            vl_type *visited_array = vl->mass;
+            vl_type visited_array_tag = vl->curV;
+
+            // top_candidates - the result set R
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>> top_candidates;
+            // candidate_set  - the search set S
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
+
+            /////////////////////// FINGER - variable definition
+            labeltype c_label, d_label;
+            unsigned int c_start;
+            dist_t old_dist, q_2, t, b, c_2, d_res, q_res, q_res_2;
+            // unsigned long long * binary_sgn_q_res_P, sgn_d_res_P;
+            float *c_P, *q_vec_P;
+            int *sign_q_res_P;
+            unsigned long long binary_sgn_d_res_P, binary_sgn_q_res_P;
+            sign_q_res_P = new int[finger::lsh_dim];
+            ///////////////////////
+            q_2 = 0;
+            auto tmp = (float*)data_point;
+            for(int i = 0; i < finger::D; i++){
+                q_2 += tmp[i] * tmp[i];
+            }
+
+            dist_t lowerBound;
+            // Insert the entry point to the result and search set with its exact distance as a key.
+            if (!has_deletions || !isMarkedDeleted(ep_id)) {
+#ifdef COUNT_DIST_TIME
+                StopW stopw = StopW();
+#endif
+                dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+                lowerBound = dist;
+                top_candidates.emplace(dist, ep_id);
+                candidate_set.emplace(-dist, ep_id);
+            }
+            else {
+                lowerBound = std::numeric_limits<dist_t>::max();
+                candidate_set.emplace(-lowerBound, ep_id);
+            }
+
+            visited_array[ep_id] = visited_array_tag;
+            int cnt_visit = 0;
+
+            // Iteratively generate candidates and conduct DCOs to maintain the result set R.
+            while (!candidate_set.empty()) {
+                std::pair<dist_t, tableint> current_node_pair = candidate_set.top();
+
+                // When the smallest object in S has its distance larger than the largest in R, terminate the algorithm.
+                if ((-current_node_pair.first) > lowerBound && (top_candidates.size() == ef || has_deletions == false)) {
+                    break;
+                }
+                candidate_set.pop();
+
+                old_dist = -current_node_pair.first;
+
+                // Fetch the smallest object in S.
+                tableint current_node_id = current_node_pair.second;
+                int *data = (int *) get_linklist0(current_node_id);
+                size_t size = getListCount((linklistsizeint*)data);
+                if(collect_metrics){
+                    metric_hops++;
+                    metric_distance_computations+=size;
+                }
+
+#ifdef COUNT_DIST_TIME
+                StopW stopw = StopW();
+#endif
+                c_label = getExternalLabel(current_node_id);
+                c_2 = finger::c_2s[c_label][0];
+                c_P = finger::c_Ps[c_label];
+                c_start = finger::start_idxs[c_label][0];
+
+                t = (q_2 + c_2 - old_dist) / 2 / c_2;
+                q_res_2 = q_2 - t * t * c_2;
+                q_res_2  = q_res_2 < 0 ? 0 : q_res_2;
+                q_res = sqrt(q_res_2);
+
+
+                // q_vec_P = come from vector
+                // q_res_P = q_vec_P - t * c_P
+                q_vec_P = finger::q_Ps[finger::q_label];
+                for(int tmpi = 0; tmpi < finger::lsh_dim; tmpi++){
+                    sign_q_res_P[tmpi] = q_vec_P[tmpi] > t * c_P[tmpi] ? 1: -1;
+                }
+
+                binary_sgn_q_res_P = finger::get_binary_sgn_from_array(sign_q_res_P);
+#ifdef COUNT_DIST_TIME
+                adsampling::approx_dist_time += stopw.getElapsedTimeMicro();
+#endif
+
+                // Enumerate all the neighbors of the object and view them as candidates of KNNs.
+                for (size_t j = 1; j <= size; j++) {
+                    int candidate_id = *(data + j);
+                    if (!(visited_array[candidate_id] == visited_array_tag)) {
+                        cnt_visit ++;
+                        visited_array[candidate_id] = visited_array_tag;
+
+                        // If the result set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
+                        if (top_candidates.size() < ef){
+                            char *currObj1 = (getDataByInternalId(candidate_id));
+#ifdef COUNT_DIST_TIME
+                            StopW stopw = StopW();
+#endif
+                            dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                            adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+#ifdef COUNT_DIMENSION
+                            adsampling::tot_dimension+= finger::D;
+#endif
+                            adsampling::tot_full_dist ++;
+                            if (!has_deletions || !isMarkedDeleted(candidate_id))
+                                candidate_set.emplace(-dist, candidate_id);
+                            if (!has_deletions || !isMarkedDeleted(candidate_id))
+                                top_candidates.emplace(dist, candidate_id);
+                            if (!top_candidates.empty())
+                                lowerBound = top_candidates.top().first;
+                        }
+                            // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
+                        else {
+#ifdef COUNT_DIST_TIME
+                            StopW stopw = StopW();
+#endif
+                            b = finger::bs_dres[c_start+j-1][0];
+                            d_res = finger::bs_dres[c_start+j-1][1];
+                            binary_sgn_d_res_P = finger::binary_sgn_d_res_Ps[c_start+j-1];
+
+                            dist_t dist = finger::dist_comp(lowerBound, t, b, c_2, d_res, q_res, q_res_2, binary_sgn_q_res_P, binary_sgn_d_res_P);
+                            // cout << getExternalLabel(candidate_id) << endl;
+#ifdef COUNT_DIST_TIME
+                            adsampling::approx_dist_time += stopw.getElapsedTimeMicro();
+#endif
+
+                            if(dist >= 0){
+#ifdef COUNT_DIST_TIME
+                                StopW stopw = StopW();
+#endif
+                                dist = fstdistfunc_(data_point, getDataByInternalId(candidate_id), dist_func_param_);
+#ifdef COUNT_DIST_TIME
+                                adsampling::distance_time += stopw.getElapsedTimeMicro();
+#endif
+#ifdef COUNT_DIMENSION
+                                adsampling::tot_dimension+= finger::D;
+#endif
+                                adsampling::tot_full_dist++;
+                                if(dist < lowerBound){
+                                    candidate_set.emplace(-dist, candidate_id);
+                                    if (!has_deletions || !isMarkedDeleted(candidate_id))
+                                        top_candidates.emplace(dist, candidate_id);
+                                    if (top_candidates.size() > ef)
+                                        top_candidates.pop();
+                                    if (!top_candidates.empty())
+                                        lowerBound = top_candidates.top().first;
+                                }
+                            }
+#ifdef COUNT_FN
+                            else{
+                                dist_t real_dist = fstdistfunc_(data_point, getDataByInternalId(candidate_id), dist_func_param_);
+                                if(real_dist < lowerBound)
+                                    adsampling::tot_fn++;
+                            }
+#endif
+
+                        }
+                    }
+                }
+            }
+            adsampling::tot_dist_calculation += cnt_visit;
+            visited_list_pool_->releaseVisitedList(vl);
+            delete [] sign_q_res_P;
+            return top_candidates;
+        }
+
         template<bool has_deletions, bool collect_metrics = false>
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>>
         searchBaseLayerPCAstar(tableint ep_id, const void *data_point, size_t ef, size_t k) const {
@@ -2384,6 +2565,8 @@ namespace hnswlib {
                     top_candidates = searchBaseLayerPCAplus<true, true>(currObj, query_data, std::max(ef_, k), k);
                 else if (adaptive == 8)
                     top_candidates = searchBaseLayerPCAstar<true, true>(currObj, query_data, std::max(ef_, k), k);
+                else if (adaptive == 9)
+                    top_candidates = searchBaseLayerFINGER<true, true>(currObj, query_data, std::max(ef_, k));
                 else top_candidates = searchBaseLayerST<true, true>(currObj, query_data, std::max(ef_, k));
             } else {
                 if (adaptive == 1)
@@ -2403,6 +2586,8 @@ namespace hnswlib {
                     top_candidates = searchBaseLayerPCAplus<true, true>(currObj, query_data, std::max(ef_, k), k);
                 else if (adaptive == 8)
                     top_candidates = searchBaseLayerPCAstar<true, true>(currObj, query_data, std::max(ef_, k), k);
+                else if (adaptive == 9)
+                    top_candidates = searchBaseLayerFINGER<true, true>(currObj, query_data, std::max(ef_, k));
                 else top_candidates = searchBaseLayerST<false, true>(currObj, query_data, std::max(ef_, k));
             }
 

@@ -10,7 +10,6 @@
 
 #include <iostream>
 #include <fstream>
-
 #include <ctime>
 #include <cmath>
 #include <matrix.h>
@@ -27,6 +26,8 @@ const int MAXK = 100;
 
 long double rotation_time = 0;
 int efSearch = 0;
+float finger_ratio = 1.5;
+int finger_lsh_dim = 64;
 double outer_recall = 0;
 
 static void get_gt(unsigned int *massQA, float *massQ, size_t vecsize, size_t qsize, L2Space &l2space,
@@ -143,6 +144,7 @@ int main(int argc, char *argv[]) {
     char result_path[256] = "";
     char transformation_path[256] = "";
     char codebook_path[256] = "";
+    char dataset[256]= "";
     int randomize = 0;
     char square_path[256] = "";
     char linear_path[256] = "";
@@ -151,7 +153,7 @@ int main(int argc, char *argv[]) {
     float epsilon0 = 8.0;
 
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "d:k:e:p:b:i:q:g:r:t:p:v:s:l:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "d:k:e:p:b:i:q:g:r:t:p:v:s:l:n:", longopts, &ind);
         switch (iarg) {
             case 'd':
                 if (optarg)randomize = atoi(optarg);
@@ -191,6 +193,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 's':
                 if (optarg) efSearch = atoi(optarg);
+                break;
+            case 'n':
+                if (optarg)strcpy(dataset, optarg);
                 break;
         }
     }
@@ -249,6 +254,49 @@ int main(int argc, char *argv[]) {
         PCA->project_vector(Q.data, Q.n, false);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
         std::cerr << "rotate time:: " << rotation_time << endl;
+    }
+    else if(randomize == 9){
+        string base_path_str = "./DATA";
+        string data_str(dataset);
+        string M_str = "16";
+        string ef_str = "500";
+        string finger_projection_path_str = base_path_str + "/" + data_str + "/FINGER" + to_string(finger_lsh_dim) +"_" + data_str + "M" + M_str + "ef" + ef_str + "_LSH.fvecs";
+        string finger_b_dres_path_str = base_path_str + "/" + data_str + "/FINGER" + to_string(finger_lsh_dim) +"_" + data_str + "M" + M_str + "ef" + ef_str +"_b_dres.fvecs";
+        string finger_sgn_dres_P_path_str = base_path_str + "/" + data_str + "/FINGER" + to_string(finger_lsh_dim) +"_" + data_str + "M" + M_str + "ef" + ef_str +"_sgn_dres_P.ivecs";
+        string finger_c_2_path_str = base_path_str + "/" + data_str + "/FINGER" + to_string(finger_lsh_dim) +"_" +  data_str + "M" + M_str + "ef" + ef_str +"_c_2.fvecs";
+        string finger_c_P_path_str = base_path_str + "/" + data_str + "/FINGER" + to_string(finger_lsh_dim) +"_" +  data_str + "M" + M_str + "ef" + ef_str +"_c_P.fvecs";
+        string finger_start_idx_path_str = base_path_str + "/" + data_str + "/FINGER" + to_string(finger_lsh_dim) +"_" +  data_str + "M" + M_str + "ef" + ef_str +"_start_idx.ivecs";
+        char finger_projection_path[256] = "";
+        strcpy(finger_projection_path, finger_projection_path_str.c_str());
+        char finger_b_dres_path[256] = "";
+        strcpy(finger_b_dres_path, finger_b_dres_path_str.c_str());
+        char finger_sgn_dres_P_path[256] = "";
+        strcpy(finger_sgn_dres_P_path, finger_sgn_dres_P_path_str.c_str());
+        char finger_c_2_path[256] = "";
+        strcpy(finger_c_2_path, finger_c_2_path_str.c_str());
+        char finger_c_P_path[256] = "";
+        strcpy(finger_c_P_path, finger_c_P_path_str.c_str());
+        char finger_start_idx_path[256] = "";
+        strcpy(finger_start_idx_path, finger_start_idx_path_str.c_str());
+        finger::P = Matrix<float>(finger_projection_path);
+        finger::bs_dres = Matrix<float>(finger_b_dres_path);
+        finger::c_2s = Matrix<float>(finger_c_2_path);
+        finger::c_Ps = Matrix<float>(finger_c_P_path);
+        finger::start_idxs = Matrix<int>(finger_start_idx_path);
+        finger::ratio = finger_ratio;
+        finger::D = Q.d;
+        finger::lsh_dim = finger_lsh_dim;
+        Matrix<int> sgn_d_res_Ps = Matrix<int>(finger_sgn_dres_P_path);
+        unsigned int edge_num = sgn_d_res_Ps.n;
+        finger::binary_sgn_d_res_Ps = vector<unsigned long long>();
+        for(int i = 0; i < edge_num; i++){
+            finger::binary_sgn_d_res_Ps.push_back(
+                    finger::get_binary_sgn_from_array(sgn_d_res_Ps[i])
+            );
+        }
+        StopW stopw = StopW();
+        finger::q_Ps = mul(Q, finger::P);
+        rotation_time = stopw.getElapsedTimeMicro() / Q.n;
     }
     freopen(result_path, "a", stdout);
     size_t k = G.d;

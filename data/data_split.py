@@ -5,8 +5,7 @@ import numpy as np
 import faiss
 
 source = '/home/yming/DATA/vector_data'
-datasets = ['sift10m','tiny5m','glove2.2m','word2vec']
-
+datasets = ['tiny80M']
 
 def do_compute_gt(xb, xq, topk=100):
     nb, d = xb.shape
