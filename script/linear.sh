@@ -53,7 +53,11 @@ for K in {20,100}; do
      efSearch=200
      opq_recall=0.995
      pca_recall=0.995
-   fi
+    elif [ $data == "_tiny80M" ]; then
+      efSearch=1000
+      opq_recall=0.995
+      pca_recall=0.995
+    fi
 
    data_path=${store_path}/${data}
    pre_data=./DATA/${data}

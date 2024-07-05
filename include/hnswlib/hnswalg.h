@@ -620,7 +620,7 @@ namespace hnswlib {
 
         template<bool has_deletions, bool collect_metrics = false>
         std::vector<std::tuple<unsigned, float, float> >
-        searchBaseLayerlogger(tableint ep_id, const void *data_point, size_t ef, size_t k, int adaptive = 0) const {
+        searchBaseLayerlogger(tableint ep_id, const void *data_point, size_t ef, size_t k, int adaptive = 1) const {
             std::vector<std::tuple<unsigned, float, float> > logger;
             VisitedList *vl = visited_list_pool_->getFreeVisitedList();
             vl_type *visited_array = vl->mass;
@@ -1366,13 +1366,7 @@ namespace hnswlib {
             dist_t lowerBound;
             // Insert the entry point to the result and search set with its exact distance as a key.
             if (!has_deletions || !isMarkedDeleted(ep_id)) {
-#ifdef COUNT_DIST_TIME
-                StopW stopw = StopW();
-#endif
                 dist_t dist = fstdistfunc_(data_point, getDataByInternalId(ep_id), dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
                 lowerBound = dist;
                 top_candidates.emplace(dist, ep_id);
                 candidate_set.emplace(-dist, ep_id);
@@ -1406,9 +1400,6 @@ namespace hnswlib {
                     metric_distance_computations+=size;
                 }
 
-#ifdef COUNT_DIST_TIME
-                StopW stopw = StopW();
-#endif
                 c_label = getExternalLabel(current_node_id);
                 c_2 = finger::c_2s[c_label][0];
                 c_P = finger::c_Ps[c_label];
@@ -1428,9 +1419,6 @@ namespace hnswlib {
                 }
 
                 binary_sgn_q_res_P = finger::get_binary_sgn_from_array(sign_q_res_P);
-#ifdef COUNT_DIST_TIME
-                adsampling::approx_dist_time += stopw.getElapsedTimeMicro();
-#endif
 
                 // Enumerate all the neighbors of the object and view them as candidates of KNNs.
                 for (size_t j = 1; j <= size; j++) {
@@ -1442,17 +1430,7 @@ namespace hnswlib {
                         // If the result set is not full, then calculate the exact distance. (i.e., assume the distance threshold to be infinity)
                         if (top_candidates.size() < ef){
                             char *currObj1 = (getDataByInternalId(candidate_id));
-#ifdef COUNT_DIST_TIME
-                            StopW stopw = StopW();
-#endif
                             dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                            adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
-#ifdef COUNT_DIMENSION
-                            adsampling::tot_dimension+= finger::D;
-#endif
-                            adsampling::tot_full_dist ++;
                             if (!has_deletions || !isMarkedDeleted(candidate_id))
                                 candidate_set.emplace(-dist, candidate_id);
                             if (!has_deletions || !isMarkedDeleted(candidate_id))
@@ -1462,31 +1440,15 @@ namespace hnswlib {
                         }
                             // Otherwise, conduct DCO with ADSampling wrt the N_ef th NN.
                         else {
-#ifdef COUNT_DIST_TIME
-                            StopW stopw = StopW();
-#endif
                             b = finger::bs_dres[c_start+j-1][0];
                             d_res = finger::bs_dres[c_start+j-1][1];
                             binary_sgn_d_res_P = finger::binary_sgn_d_res_Ps[c_start+j-1];
 
                             dist_t dist = finger::dist_comp(lowerBound, t, b, c_2, d_res, q_res, q_res_2, binary_sgn_q_res_P, binary_sgn_d_res_P);
                             // cout << getExternalLabel(candidate_id) << endl;
-#ifdef COUNT_DIST_TIME
-                            adsampling::approx_dist_time += stopw.getElapsedTimeMicro();
-#endif
 
                             if(dist >= 0){
-#ifdef COUNT_DIST_TIME
-                                StopW stopw = StopW();
-#endif
                                 dist = fstdistfunc_(data_point, getDataByInternalId(candidate_id), dist_func_param_);
-#ifdef COUNT_DIST_TIME
-                                adsampling::distance_time += stopw.getElapsedTimeMicro();
-#endif
-#ifdef COUNT_DIMENSION
-                                adsampling::tot_dimension+= finger::D;
-#endif
-                                adsampling::tot_full_dist++;
                                 if(dist < lowerBound){
                                     candidate_set.emplace(-dist, candidate_id);
                                     if (!has_deletions || !isMarkedDeleted(candidate_id))
@@ -1497,19 +1459,10 @@ namespace hnswlib {
                                         lowerBound = top_candidates.top().first;
                                 }
                             }
-#ifdef COUNT_FN
-                            else{
-                                dist_t real_dist = fstdistfunc_(data_point, getDataByInternalId(candidate_id), dist_func_param_);
-                                if(real_dist < lowerBound)
-                                    adsampling::tot_fn++;
-                            }
-#endif
-
                         }
                     }
                 }
             }
-            adsampling::tot_dist_calculation += cnt_visit;
             visited_list_pool_->releaseVisitedList(vl);
             delete [] sign_q_res_P;
             return top_candidates;
@@ -2534,7 +2487,6 @@ namespace hnswlib {
 #ifdef COUNT_DIST_TIME
                             adsampling::distance_time += stopw.getElapsedTimeMicro();
 #endif
-                            adsampling::tot_full_dist++;
                             if (d < curdist) {
                                 curdist = d;
                                 currObj = cand;
@@ -2605,7 +2557,7 @@ namespace hnswlib {
 
         //max heap
         std::vector<std::tuple<unsigned, float, float> >
-        searchKnnlogger(void *query_data, size_t k, int adaptive = 0) const {
+        searchKnnlogger(void *query_data, size_t k, int adaptive = 1) const {
             std::vector<std::tuple<unsigned, float, float> > logger, tmp;
             if (cur_element_count == 0) return logger;
             tableint currObj = enterpoint_node_;

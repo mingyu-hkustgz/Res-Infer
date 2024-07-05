@@ -20,20 +20,20 @@ for data in "${datasets[@]}"; do
   index_file="${index_path}/${data}_ef${efConstruction}_M${M}_pca.index"
   ./cmake-build-debug/src/index_hnsw -d $data_file -i $index_file -e $efConstruction -m $M
 
-  echo "Indexing -IVF- ${data}"
-
-  python ./data/ivf.py -d ${data} -m "pca"
-
-  data_file="${index_path}/${data}_base_pca.fvecs"
-  centroid_file="${index_path}/${data}_centroid_pca.fvecs"
-  index_file="${index_path}/${data}_ivf2_pca.index"
-  adaptive=2
-  ./cmake-build-debug/src/index_ivf -d $data_file -c $centroid_file -i $index_file -a $adaptive
-
-  data_file="${index_path}/${data}_base_pca.fvecs"
-  centroid_file="${index_path}/${data}_centroid_pca.fvecs"
-  index_file="${index_path}/${data}_ivf1_pca.index"
-  adaptive=1
-  ./cmake-build-debug/src/index_ivf -d $data_file -c $centroid_file -i $index_file -a $adaptive
+#  echo "Indexing -IVF- ${data}"
+#
+#  python ./data/ivf.py -d ${data} -m "pca"
+#
+#  data_file="${index_path}/${data}_base_pca.fvecs"
+#  centroid_file="${index_path}/${data}_centroid_pca.fvecs"
+#  index_file="${index_path}/${data}_ivf2_pca.index"
+#  adaptive=2
+#  ./cmake-build-debug/src/index_ivf -d $data_file -c $centroid_file -i $index_file -a $adaptive
+#
+#  data_file="${index_path}/${data}_base_pca.fvecs"
+#  centroid_file="${index_path}/${data}_centroid_pca.fvecs"
+#  index_file="${index_path}/${data}_ivf1_pca.index"
+#  adaptive=1
+#  ./cmake-build-debug/src/index_ivf -d $data_file -c $centroid_file -i $index_file -a $adaptive
 
 done

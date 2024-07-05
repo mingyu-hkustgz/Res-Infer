@@ -38,10 +38,7 @@ namespace finger{
         p4 = -2 * q_res * d_res * cos_theta;
 
         float dis = p1 + p2 + p3 + p4;
-#ifdef COUNT_DIMENSION
-        adsampling::tot_dimension += lsh_dim + 16;
-// adsampling::tot_comp_dim += i;
-#endif
+
         return dis >= bsf * ratio ? -dis : dis;
     }
 

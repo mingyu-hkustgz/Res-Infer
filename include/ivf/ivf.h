@@ -49,7 +49,8 @@ public:
 
     ResultHeap search(float *query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
 
-    ResultHeap search_with_pca(float *query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
+    ResultHeap
+    search_with_pca(float *query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
 
     ResultHeap search_with_learned_pca_lp(float *query, size_t k, size_t nprobe,
                                           float distK = std::numeric_limits<float>::max()) const;
@@ -57,9 +58,14 @@ public:
     ResultHeap search_with_learned_pca_l2(float *query, size_t k, size_t nprobe,
                                           float distK = std::numeric_limits<float>::max()) const;
 
-    ResultHeap search_with_quantizer(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
+    ResultHeap
+    search_with_quantizer(float *query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
 
-    ResultHeap search_with_quantizer_simd(float* query, size_t k, size_t nprobe, float distK = std::numeric_limits<float>::max()) const;
+    ResultHeap search_with_quantizer_simd(float *query, size_t k, size_t nprobe,
+                                          float distK = std::numeric_limits<float>::max()) const;
+
+    ResultHeap search_with_quantizer_rerank(float *query, size_t k, size_t nprobe, size_t rerank_bound,
+                                            float distK = std::numeric_limits<float>::max()) const;
 
     std::vector<std::tuple<unsigned, float, float> > search_logger(float *query, size_t k, size_t nprobe) const;
 
@@ -511,18 +517,76 @@ ResultHeap IVF::search_with_quantizer(float *query, size_t k, size_t nprobe, flo
 
     // fast inference by PQ approximate distance
     PQ->calc_dist_map(query);
+    ResultHeap KNNs, CoarseQ;
+    for (int i = 0; i < nprobe; i++) {
+        unsigned cluster_id = centroid_dist[i].second;
+        for (int j = 0; j < len[cluster_id]; j++) {
+            size_t can = start[cluster_id] + j;
+            float tmp_dist = PQ->naive_product_map_dist(can);
+            CoarseQ.emplace(-tmp_dist, can);
+        }
+    }
+
+    size_t Topk = k;
+    while (Topk--){
+        size_t can = CoarseQ.top().second;
+        CoarseQ.pop();
+        float tmp_dist = sqr_dist(query, L1_data + can * D, D);
+        KNNs.emplace(tmp_dist,id[can]);
+    }
+    float thresh = KNNs.top().first;
+    while (!CoarseQ.empty()) {
+        if(CoarseQ.empty()) break;
+        size_t can = CoarseQ.top().second;
+        float pq_dist = -CoarseQ.top().first;
+        CoarseQ.pop();
+        if (PQ->linear_classifier_default_pq(pq_dist, PQ->node_cluster_dist_[can], thresh))
+            continue;
+        float tmp_dist = sqr_dist(query, L1_data + can * D, D);
+        if (KNNs.size() < k) KNNs.emplace(tmp_dist, id[can]);
+        else if (tmp_dist < KNNs.top().first) {
+            KNNs.emplace(tmp_dist, id[can]);
+            if (KNNs.size() > k) KNNs.pop();
+            thresh = KNNs.top().first;
+        }
+    }
+
+    delete[] centroid_dist;
+    return KNNs;
+}
+
+ResultHeap IVF::search_with_quantizer_simd(float *query, size_t k, size_t nprobe, float distK) const {
+    // the default value of distK is +inf
+    Result *centroid_dist = new Result[C];
+
+    // Find out the closest N_{probe} centroids to the query vector.
+    for (int i = 0; i < C; i++) {
+        centroid_dist[i].first = sqr_dist(query, centroids + i * D, D);
+        centroid_dist[i].second = i;
+    }
+
+    // Find out the closest N_{probe} centroids to the query vector.
+    std::partial_sort(centroid_dist, centroid_dist + nprobe, centroid_dist + C);
+
+    // fast inference by PQ approximate distance
+    PQ->calc_dist_map(query);
     ResultHeap KNNs;
     float thresh = distK;
     for (int i = 0; i < nprobe; i++) {
         unsigned cluster_id = centroid_dist[i].second;
+        std::vector<unsigned> ids;
+        for (int j = 0; j < len[cluster_id]; j++) {
+            size_t can = start[cluster_id] + j;
+            ids.push_back(can);
+        }
+        while (ids.size() % 4 != 0) ids.push_back(0);
+        auto res = PQ->sse4_dist_sacn(ids.data(), ids.size());
         for (int j = 0; j < len[cluster_id]; j++) {
             size_t can = start[cluster_id] + j;
 #ifdef COUNT_PRUNE_RATE
             adsampling::tot_pq_dist++;
 #endif
-            if (PQ->linear_classifier_default_pq(PQ->naive_product_map_dist(can), PQ->node_cluster_dist_[can],
-                                                thresh))
-                continue;
+            if (PQ->linear_classifier_default_pq(res[j], PQ->node_cluster_dist_[can], thresh)) continue;
 #ifdef COUNT_PRUNE_RATE
             adsampling::tot_dist_calculation++;
 #endif
@@ -534,19 +598,21 @@ ResultHeap IVF::search_with_quantizer(float *query, size_t k, size_t nprobe, flo
                 thresh = KNNs.top().first;
             }
         }
+        delete[] res;
     }
-
     delete[] centroid_dist;
     return KNNs;
 }
 
-ResultHeap IVF::search_with_quantizer_simd(float* query, size_t k, size_t nprobe, float distK) const{
+
+ResultHeap
+IVF::search_with_quantizer_rerank(float *query, size_t k, size_t nprobe, size_t rerank_bound, float distK) const {
     // the default value of distK is +inf
-    Result* centroid_dist = new Result [C];
+    Result *centroid_dist = new Result[C];
 
     // Find out the closest N_{probe} centroids to the query vector.
-    for(int i=0;i<C;i++){
-        centroid_dist[i].first = sqr_dist(query, centroids+i*D, D);
+    for (int i = 0; i < C; i++) {
+        centroid_dist[i].first = sqr_dist(query, centroids + i * D, D);
         centroid_dist[i].second = i;
     }
 
@@ -555,37 +621,28 @@ ResultHeap IVF::search_with_quantizer_simd(float* query, size_t k, size_t nprobe
 
     // fast inference by PQ approximate distance
     PQ->calc_dist_map(query);
-    ResultHeap KNNs;
-    float thresh = distK;
-    for(int i=0;i<nprobe;i++){
+    ResultHeap KNNs, CoarseQ;
+    for (int i = 0; i < nprobe; i++) {
         unsigned cluster_id = centroid_dist[i].second;
-        std::vector<unsigned> ids;
-        for(int j=0;j<len[cluster_id];j++){
+        for (int j = 0; j < len[cluster_id]; j++) {
             size_t can = start[cluster_id] + j;
-            ids.push_back(can);
+            float tmp_dist = PQ->naive_product_map_dist(can);
+            CoarseQ.emplace(-tmp_dist, can);
         }
-        while(ids.size()%4!=0) ids.push_back(0);
-        auto res = PQ->sse4_dist_sacn(ids.data(), ids.size());
-        for(int j=0;j<len[cluster_id];j++){
-            size_t can = start[cluster_id] + j;
-#ifdef COUNT_PRUNE_RATE
-            adsampling::tot_pq_dist++;
-#endif
-            if(PQ->linear_classifier_default_pq(res[j],PQ->node_cluster_dist_[can], thresh)) continue;
-#ifdef COUNT_PRUNE_RATE
-            adsampling::tot_dist_calculation++;
-#endif
-            float tmp_dist = sqr_dist(query, L1_data + can * D, D);
-            if(KNNs.size() < k) KNNs.emplace(tmp_dist,id[can]);
-            else if(tmp_dist < KNNs.top().first){
-                KNNs.emplace(tmp_dist,id[can]);
-                if(KNNs.size() > k) KNNs.pop();
-                thresh = KNNs.top().first;
-            }
-        }
-        delete [] res;
     }
-    delete [] centroid_dist;
+    for (int i = 0; i < std::max(rerank_bound, k); i++) {
+        if(CoarseQ.empty()) break;
+        size_t can = CoarseQ.top().second;
+        CoarseQ.pop();
+        float tmp_dist = sqr_dist(query, L1_data + can * D, D);
+        if (KNNs.size() < k) KNNs.emplace(tmp_dist, id[can]);
+        else if (tmp_dist < KNNs.top().first) {
+            KNNs.emplace(tmp_dist, id[can]);
+            if (KNNs.size() > k) KNNs.pop();
+        }
+    }
+
+    delete[] centroid_dist;
     return KNNs;
 }
 

@@ -41,8 +41,11 @@ if __name__ == "__main__":
     M = 64
     if dataset == "gist":
         M = int(d / 8)
+    elif dataset == "_tiny80M":
+        M = int(d / 3)
     else:
         M = int(d / 4)
+
     d2 = ((d + M - 1) // M) * M
     opq = faiss.OPQMatrix(d, M, d2)
     opq.verbose = True

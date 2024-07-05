@@ -25,6 +25,7 @@ const int MAXK = 100;
 int randomize = 0;
 long double rotation_time = 0;
 int efSearch = 0;
+int rerank_bound = 100;
 
 void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int k) {
     float sys_t, usr_t, usr_t_sum = 0, total_time = 0, search_time = 0;
@@ -59,6 +60,10 @@ void test(const Matrix<float> &Q, const Matrix<unsigned> &G, const IVF &ivf, int
                 KNNs = ivf.search_with_quantizer(Q.data + i * Q.d, k, nprobe);
 #endif
             }
+            else if (randomize == 7){
+                KNNs = ivf.search_with_quantizer_rerank(Q.data + i * Q.d, k, nprobe, rerank_bound);
+            }
+
 
             GetCurTime(&run_end);
             GetTime(&run_start, &run_end, &usr_t, &sys_t);
@@ -196,6 +201,16 @@ int main(int argc, char *argv[]) {
         PQ->load_product_codebook(codebook_path);
         PQ->load_project_matrix(transformation_path);
         PQ->load_linear_model(linear_path);
+        ivf.PQ = PQ;
+        ivf.encoder_origin_data();
+        StopW stopw = StopW();
+        PQ->project_vector(Q.data, Q.n);
+        rotation_time = stopw.getElapsedTimeMicro() / Q.n;
+        std::cerr << "rotate time:: " << rotation_time << std::endl;
+    } else if(randomize==7){
+        auto PQ = new Index_PQ::Quantizer(ivf.N,Q.d);
+        PQ->load_product_codebook(codebook_path);
+        PQ->load_project_matrix(transformation_path);
         ivf.PQ = PQ;
         ivf.encoder_origin_data();
         StopW stopw = StopW();

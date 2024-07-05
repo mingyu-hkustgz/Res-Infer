@@ -6,8 +6,9 @@ from tqdm import tqdm
 
 source = '/home/yming/DATA/vector_data'
 datasets = ["_sift10m", "gist", "deep1M", "_tiny5m", "_glove2.2m", "_word2vec"]
-method = 'sse'
-marker = ['o', 'triangle', 'square', 'otimes', 'star', 'diamond', 'pentagon', 'oplus', 'asterisk']
+# datasets = ["_tiny80M", "sift100m"]
+method = 'naive'
+marker = ['o', 'triangle', 'square', 'otimes', 'star', 'diamond', 'pentagon', 'oplus', 'asterisk', 'halfcircle']
 
 
 def load_result_data(filename):
@@ -51,6 +52,13 @@ if __name__ == "__main__":
         if dataset == "deep100M":
             real_data = "DEEP100M"
             base_log = 100
+        if dataset == "_tiny80M":
+            real_data = "tiny80M"
+            base_log = 100
+        if dataset == "sift100m":
+            real_data = "SIFT100M"
+            base_log = 100
+
 
         for K in [20, 100]:
             plt.figure(figsize=(12, 8))
@@ -72,7 +80,7 @@ ymajorgrids=true,
 xmajorgrids=true,
 grid style=dashed,
 ]''', file=out_put_file)
-            for i in range(9):
+            for i in range(10):
                 result_path = f"./results-{method}/recall@{K}/{dataset}/{dataset}_ad_hnsw_{i}.log"
                 if not os.path.exists(result_path):
                     continue
@@ -118,6 +126,10 @@ grid style=dashed,
                     print(
                         f"\\addplot[line width=0.15mm,color=violate,mark={marker[i]},mark size=0.5mm]%hnsw-res-infer {dataset}",
                         file=out_put_file)
+                elif i == 9:
+                    print(
+                        f"\\addplot[line width=0.15mm,color=black,mark={marker[i]},mark size=0.5mm]%hnsw-finger-infer {dataset}",
+                        file=out_put_file)
                 print("plot coordinates {", file=out_put_file)
                 for j in range(len(recall)):
                     print("    ( " + str(round(recall[j] / 100, 3)) + ", " + str(round(Qps[j] / base_log, 3)) + " )",
@@ -132,6 +144,9 @@ grid style=dashed,
             if count % 4 == 0:
                 print(r'\\', file=out_put_file)
                 print(r'\vspace{1mm}', file=out_put_file)
+
+            if method == "big":
+                continue
 
             print('\\subfloat[' + real_data + '-IVF]{', file=out_put_file)
             print(r'''

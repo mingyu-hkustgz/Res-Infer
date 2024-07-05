@@ -33,8 +33,13 @@ for K in {20,100}; do
     elif [ $data == "deep100M" ]; then
       efSearch=200
       sigma=12
+    elif [ $data == "sift100m" ]; then
+      efSearch=100
+      sigma=8
+    elif [ $data == "_tiny80M" ]; then
+      efSearch=500
+      sigma=12
     fi
-
     data_path=${store_path}/${data}
     index_path=./DATA/${data}
     result_path="./results/recall@${K}/${data}"
