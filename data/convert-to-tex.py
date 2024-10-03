@@ -5,9 +5,9 @@ import struct
 from tqdm import tqdm
 
 source = '/home/yming/DATA/vector_data'
-datasets = ["_sift10m", "gist", "deep1M", "_tiny5m", "_glove2.2m", "_word2vec"]
-# datasets = ["_tiny80M", "sift100m"]
-method = 'naive'
+# datasets = ["_sift10m", "gist", "deep1M", "_tiny5m", "_glove2.2m", "_word2vec"]
+datasets = ["_msong", "gist", "deep1M", "_tiny5m", "_glove2.2m", "_word2vec"]
+method = 'avx'
 marker = ['o', 'triangle', 'square', 'otimes', 'star', 'diamond', 'pentagon', 'oplus', 'asterisk', 'halfcircle']
 
 
@@ -58,7 +58,9 @@ if __name__ == "__main__":
         if dataset == "sift100m":
             real_data = "SIFT100M"
             base_log = 100
-
+        if dataset == "_msong":
+            real_data = "MSONG"
+            base_log = 100
 
         for K in [20, 100]:
             plt.figure(figsize=(12, 8))
@@ -97,7 +99,7 @@ grid style=dashed,
                     print(f"\\addplot[line width=0.15mm,color=black,mark={marker[i]},mark size=0.5mm]%hnsw+ {dataset}",
                           file=out_put_file)
                 elif i == 3:
-                    if method == "sse":
+                    if method == "sse" or method=="avx":
                         continue
                     print(
                         f"\\addplot[line width=0.15mm,color=forestgreen,mark=otimes,mark size=0.5mm]%hnsw-opq {dataset}",
@@ -145,9 +147,6 @@ grid style=dashed,
                 print(r'\\', file=out_put_file)
                 print(r'\vspace{1mm}', file=out_put_file)
 
-            if method == "big":
-                continue
-
             print('\\subfloat[' + real_data + '-IVF]{', file=out_put_file)
             print(r'''
 \begin{tikzpicture}[scale=1]
@@ -175,13 +174,13 @@ grid style=dashed,
                     print(f"\\addplot[line width=0.15mm,color=orange,mark=triangle,mark size=0.5mm]%ivf++ {dataset}",
                           file=out_put_file)
                 elif i == 3:
-                    print(
-                        f"\\addplot[line width=0.15mm,color=airforceblue,mark=otimes,mark size=0.5mm]%ivf-learn-pca++ {dataset}",
-                        file=out_put_file)
-                elif i == 4:
                     continue
                     print(
                         f"\\addplot[line width=0.15mm,color=navy,mark={marker[i]},mark size=0.5mm]%ivf-learn-pca++ {dataset}",
+                        file=out_put_file)
+                elif i == 4:
+                    print(
+                        f"\\addplot[line width=0.15mm,color=airforceblue,mark=otimes,mark size=0.5mm]%ivf-learn-pca++ {dataset}",
                         file=out_put_file)
                 elif i == 5:
                     print(

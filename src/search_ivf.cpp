@@ -1,7 +1,7 @@
 #define EIGEN_DONT_PARALLELIZE
 #define EIGEN_DONT_VECTORIZE
 #define COUNT_DIMENSION
-#define COUNT_PRUNE_RATE
+//#define COUNT_PRUNE_RATE
 /***
  * The operation to define use SSE
  ***/

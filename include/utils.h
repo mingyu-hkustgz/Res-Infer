@@ -252,7 +252,6 @@ inline float naive_lp_dist_calc(const float *p, const float *q, const unsigned d
     return ans;
 }
 
-__attribute__((always_inline))
 inline float sse_l2_dist_calc(const float *pVect1, const float *pVect2, const unsigned qty) {
     float __attribute__((aligned(32))) TmpRes[4];
     size_t qty4 = qty >> 2;
@@ -275,7 +274,7 @@ inline float sse_l2_dist_calc(const float *pVect1, const float *pVect2, const un
 }
 
 
-__attribute__((always_inline))
+
 inline float sse_ip_dist_calc(const float *pVect1, const float *pVect2, const unsigned qty) {
     float __attribute__((aligned(32))) TmpRes[4];
     size_t qty4 = qty >> 2;
@@ -296,23 +295,176 @@ inline float sse_ip_dist_calc(const float *pVect1, const float *pVect2, const un
     return TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3];
 }
 
+inline
+float avx_ip_dist_calc(const float *pVect1, const float *pVect2, const unsigned qty) {
+    float __attribute__((aligned(32))) TmpRes[8];
+
+    size_t qty16 = qty / 16;
+
+    const float *pEnd1 = pVect1 + 16 * qty16;
+
+    __m256 sum256 = _mm256_set1_ps(0);
+
+    while (pVect1 < pEnd1) {
+        //_mm_prefetch((char*)(pVect2 + 16), _MM_HINT_T0);
+
+        __m256 v1 = _mm256_loadu_ps(pVect1);
+        pVect1 += 8;
+        __m256 v2 = _mm256_loadu_ps(pVect2);
+        pVect2 += 8;
+        sum256 = _mm256_add_ps(sum256, _mm256_mul_ps(v1, v2));
+
+        v1 = _mm256_loadu_ps(pVect1);
+        pVect1 += 8;
+        v2 = _mm256_loadu_ps(pVect2);
+        pVect2 += 8;
+        sum256 = _mm256_add_ps(sum256, _mm256_mul_ps(v1, v2));
+    }
+
+    _mm256_store_ps(TmpRes, sum256);
+    float sum = TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3] + TmpRes[4] + TmpRes[5] + TmpRes[6] + TmpRes[7];
+
+    return sum;
+}
+
+inline float
+avx512_ip_dist_calc(float *pVect1, float *pVect2, const unsigned qty) {
+    float __attribute__((aligned(64))) TmpRes[16];
+
+    size_t qty16 = qty / 16;
+
+
+    const float *pEnd1 = pVect1 + 16 * qty16;
+
+    __m512 sum512 = _mm512_set1_ps(0);
+
+    while (pVect1 < pEnd1) {
+        //_mm_prefetch((char*)(pVect2 + 16), _MM_HINT_T0);
+
+        __m512 v1 = _mm512_loadu_ps(pVect1);
+        pVect1 += 16;
+        __m512 v2 = _mm512_loadu_ps(pVect2);
+        pVect2 += 16;
+        sum512 = _mm512_add_ps(sum512, _mm512_mul_ps(v1, v2));
+    }
+
+    _mm512_store_ps(TmpRes, sum512);
+    float sum =
+            TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3] + TmpRes[4] + TmpRes[5] + TmpRes[6] + TmpRes[7] + TmpRes[8] +
+            TmpRes[9] + TmpRes[10] + TmpRes[11] + TmpRes[12] + TmpRes[13] + TmpRes[14] + TmpRes[15];
+
+    return sum;
+}
+
+
+inline float
+avx_l2_dist_calc(const float *pVect1, const float *pVect2, const unsigned qty) {
+    float __attribute__((aligned(32))) TmpRes[8];
+
+    size_t qty16 = qty >> 4;
+
+    const float *pEnd1 = pVect1 + (qty16 << 4);
+
+    __m256 diff, v1, v2;
+    __m256 sum = _mm256_set1_ps(0);
+
+    while (pVect1 < pEnd1) {
+        v1 = _mm256_loadu_ps(pVect1);
+        pVect1 += 8;
+        v2 = _mm256_loadu_ps(pVect2);
+        pVect2 += 8;
+        diff = _mm256_sub_ps(v1, v2);
+        sum = _mm256_add_ps(sum, _mm256_mul_ps(diff, diff));
+
+        v1 = _mm256_loadu_ps(pVect1);
+        pVect1 += 8;
+        v2 = _mm256_loadu_ps(pVect2);
+        pVect2 += 8;
+        diff = _mm256_sub_ps(v1, v2);
+        sum = _mm256_add_ps(sum, _mm256_mul_ps(diff, diff));
+    }
+
+    _mm256_store_ps(TmpRes, sum);
+    return TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3] + TmpRes[4] + TmpRes[5] + TmpRes[6] + TmpRes[7];
+}
+
+
+inline float
+avx512_l2_dist_calc(const float *pVect1, float *pVect2, const unsigned qty) {
+    float __attribute__((aligned(64))) TmpRes[16];
+    size_t qty16 = qty >> 4;
+
+    const float *pEnd1 = pVect1 + (qty16 << 4);
+
+    __m512 diff, v1, v2;
+    __m512 sum = _mm512_set1_ps(0);
+
+    while (pVect1 < pEnd1) {
+        v1 = _mm512_loadu_ps(pVect1);
+        pVect1 += 16;
+        v2 = _mm512_loadu_ps(pVect2);
+        pVect2 += 16;
+        diff = _mm512_sub_ps(v1, v2);
+        // sum = _mm512_fmadd_ps(diff, diff, sum);
+        sum = _mm512_add_ps(sum, _mm512_mul_ps(diff, diff));
+    }
+
+    _mm512_store_ps(TmpRes, sum);
+    float res = TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3] + TmpRes[4] + TmpRes[5] + TmpRes[6] +
+                TmpRes[7] + TmpRes[8] + TmpRes[9] + TmpRes[10] + TmpRes[11] + TmpRes[12] +
+                TmpRes[13] + TmpRes[14] + TmpRes[15];
+
+    return (res);
+}
+
 bool isFileExists_ifstream(const char *name) {
     std::ifstream f(name);
     return f.good();
 }
 
-__attribute__((always_inline))
+//dim must be divided by 4
+inline
 float sqr_dist(float *a, float *b, int D) {
-#if defined(USE_SSE)
+#if defined(USE_AVX512)
+    if (D % 16 == 0)
+        return avx512_l2_dist_calc(a, b, D);
+    else{
+        unsigned pre_d = D - D % 16;
+        return avx512_l2_dist_calc(a, b, pre_d) + naive_l2_dist_calc(a + pre_d, b + pre_d, D % 16);
+    }
+
+#elif defined(USE_AVX)
+    if (D % 8 == 0)
+        return avx_l2_dist_calc(a, b, D);
+    else {
+        unsigned pre_d = D - D % 8;
+        return avx_l2_dist_calc(a, b, pre_d) + naive_l2_dist_calc(a + pre_d, b + pre_d, D % 8);
+    }
+#elif defined(USE_SSE)
     return sse_l2_dist_calc(a, b, D);
 #else
     return naive_l2_dist_calc(a,b,D);
 #endif
 }
 
-__attribute__((always_inline))
+inline
 float ip_dist(float *a, float *b, int D) {
-#if defined(USE_SSE)
+#if  defined(USE_AVX512)
+    if (D % 16 == 0)
+        return avx512_ip_dist_calc(a, b, D);
+    else{
+        unsigned pre_d = D - D % 16;
+        return avx512_ip_dist_calc(a, b, pre_d) + naive_lp_dist_calc(a + pre_d, b + pre_d, D % 16);
+    }
+
+#elif defined(USE_AVX)
+    if (D % 8 == 0)
+        return avx_ip_dist_calc(a, b, D);
+    else {
+        unsigned pre_d = D - D % 8;
+        return avx_ip_dist_calc(a, b, pre_d) + naive_lp_dist_calc(a + pre_d, b + pre_d, D % 8);
+    }
+#elif defined(USE_SSE)
     return sse_ip_dist_calc(a, b, D);
 #else
     return naive_lp_dist_calc(a,b,D);

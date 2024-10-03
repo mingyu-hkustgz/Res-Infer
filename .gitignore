@@ -18,6 +18,8 @@ result_*
 results-big
 results-naive
 results-sse
+results-avx
+results-avx512
 results/
 data/__pycache__/
 to_tex1.py

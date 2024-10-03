@@ -212,15 +212,14 @@ namespace hnswlib {
         size_t dim_;
     public:
         L2Space(size_t dim) {
-#if defined(USE_SSE)
-            fstdistfunc_ = L2SqrSIMD4Ext;
-#else
-            fstdistfunc_ = L2Sqr;
-#endif
+//#if defined(USE_SSE)
+//            fstdistfunc_ = L2SqrSIMD4Ext;
+//#else
+//            fstdistfunc_ = L2Sqr;
+//#endif
             // We block SIMD optimization.
-            /*
+
     #if defined(USE_SSE) || defined(USE_AVX) || defined(USE_AVX512)
-            std::cout << "Using SSE!" << std::endl;
         #if defined(USE_AVX512)
             if (AVX512Capable())
                 L2SqrSIMD16Ext = L2SqrSIMD16ExtAVX512;
@@ -239,9 +238,11 @@ namespace hnswlib {
                 fstdistfunc_ = L2SqrSIMD16ExtResiduals;
             else if (dim > 4)
                 fstdistfunc_ = L2SqrSIMD4ExtResiduals;
-            std::cout << fstdistfunc_ << std::endl;
-    #endif
-            */
+//            std::cout << fstdistfunc_ << std::endl;
+    #else
+            fstdistfunc_ = L2Sqr;
+#endif
+
             dim_ = dim;
             data_size_ = dim * sizeof(float);
         }

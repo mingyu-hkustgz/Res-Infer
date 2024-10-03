@@ -44,7 +44,7 @@ if __name__ == "__main__":
     for K in [20, 100]:
         matrix_save_path = f'./DATA/{dataset}/{dataset}_pca_matrix_{K}.fvecs'
         ground = ivecs_read(ground_path)
-        ground = ground[:, :K]
+        ground = ground[:int(1e4), :K]
         ground = ground.flatten()
         X_sample = base[ground]
         sample_mean = np.mean(X_sample, axis=0)

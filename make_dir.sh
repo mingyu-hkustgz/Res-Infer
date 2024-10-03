@@ -27,4 +27,5 @@ do
   mkdir ./results/recall@10/${dataset}
   mkdir ./results/recall@1/${dataset}
   mkdir ./figure/${dataset}
+  mkdir ./logger/${dataset}
 done

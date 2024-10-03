@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbose', help='visual option', default=False)
     parser.add_argument('-k', '--K', help='K nearest neighbor', default=1)
     args = vars(parser.parse_args())
-    dataset = "_glove2.2m"
+    dataset = "deep1M"
     method_type = "pca"
     method_dim = "32"
     index_type = "hnsw1"

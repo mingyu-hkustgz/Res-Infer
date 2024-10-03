@@ -540,10 +540,20 @@ namespace hnswlib {
                     metric_distance_computations += size;
                 }
 
-
-                // Enumerate all the neighbors of the object and view them as candidates of KNNs. 
+                // Enumerate all the neighbors of the object and view them as candidates of KNNs.
+                tableint *datal = (tableint *) (data + 1);
+#ifdef USE_SSE
+                _mm_prefetch((char *) (visited_array + *(data + 1)), _MM_HINT_T0);
+                _mm_prefetch((char *) (visited_array + *(data + 1) + 64), _MM_HINT_T0);
+                _mm_prefetch(getDataByInternalId(*datal), _MM_HINT_T0);
+                _mm_prefetch(getDataByInternalId(*(datal + 1)), _MM_HINT_T0);
+#endif
                 for (size_t j = 1; j <= size; j++) {
                     int candidate_id = *(data + j);
+#ifdef USE_SSE
+                    _mm_prefetch((char *) (visited_array + *(datal + j + 1)), _MM_HINT_T0);
+                    _mm_prefetch(getDataByInternalId(*(datal + j + 1)), _MM_HINT_T0);
+#endif
                     if (!(visited_array[candidate_id] == visited_array_tag)) {
                         cnt_visit++;
                         visited_array[candidate_id] = visited_array_tag;
@@ -1444,7 +1454,7 @@ namespace hnswlib {
                             d_res = finger::bs_dres[c_start+j-1][1];
                             binary_sgn_d_res_P = finger::binary_sgn_d_res_Ps[c_start+j-1];
 
-                            dist_t dist = finger::dist_comp(lowerBound, t, b, c_2, d_res, q_res, q_res_2, binary_sgn_q_res_P, binary_sgn_d_res_P);
+                            dist_t dist = finger::look_up_dist_comp(lowerBound, t, b, c_2, d_res, q_res, q_res_2, binary_sgn_q_res_P, binary_sgn_d_res_P);
                             // cout << getExternalLabel(candidate_id) << endl;
 
                             if(dist >= 0){

@@ -9,6 +9,9 @@
 #include "hnswlib/hnswlib.h"
 using namespace std;
 using namespace hnswlib;
+#define USE_SSE
+#define USE_AVX
+#define USE_AVX512
 
 int main(int argc, char * argv[]) {
 

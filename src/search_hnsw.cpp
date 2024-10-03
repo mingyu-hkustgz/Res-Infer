@@ -1,7 +1,7 @@
 #define EIGEN_DONT_PARALLELIZE
 #define EIGEN_DONT_VECTORIZE
-#define COUNT_DIMENSION
-#define COUNT_PRUNE_RATE
+//#define COUNT_DIMENSION
+//#define COUNT_PRUNE_RATE
 /***
  * The operation to define use SSE
  ***/
@@ -294,6 +294,7 @@ int main(int argc, char *argv[]) {
                     finger::get_binary_sgn_from_array(sgn_d_res_Ps[i])
             );
         }
+        finger::pre_compute_cos();
         StopW stopw = StopW();
         finger::q_Ps = mul(Q, finger::P);
         rotation_time = stopw.getElapsedTimeMicro() / Q.n;
