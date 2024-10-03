@@ -72,23 +72,33 @@ for K in {20,100}; do
    linear="${pre_data}/linear/linear_${index_type}_opq_${K}.log"
    logger="./logger/${data}_logger_opq_${index_type}.fvecs"
 
+    log_file="./logger/${data}/OPQ-HNSW-Linear-time.log"
+    start_time=$(date +%s)
    ./cmake-build-debug/src/logger_hnsw_opq -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -b ${code_book} -k ${K} -s ${efSearch} -e ${opq_recall}
 
    python ./data/linear.py -d ${data} -m "opq" -i ${index_type} -k ${K}
 
    ./cmake-build-debug/src/logger_hnsw_opq -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -b ${code_book} -k ${K} -s ${efSearch} -e ${opq_recall}
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+    echo "OPQ HNSW Linear with ${K} time: ${duration}(s)" | tee -a ${log_file}
+
 
    trans="${pre_data}/${data}_pca_matrix.fvecs"
    index="${pre_data}/${data}_ef500_M16_pca.index"
    linear="${pre_data}/linear/linear_${index_type}_pca_${K}.log"
    logger="./logger/${data}_logger_pca_${index_type}.fvecs"
 
+    log_file="./logger/${data}/PCA-HNSW-Linear-time.log"
+    start_time=$(date +%s)
    ./cmake-build-debug/src/logger_hnsw_pca -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_recall}
 
    python ./data/linear.py -d ${data} -m "pca" -i ${index_type} -k ${K}
 
    ./cmake-build-debug/src/logger_hnsw_pca -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_recall}
-
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+    echo "PCA HNSW Linear with ${K} time: ${duration}(s)" | tee -a ${log_file}
  done
 
 done
@@ -140,23 +150,33 @@ for K in {20,100}; do
    code_book="${index_path}/${data}_codebook.centroid"
    logger="./logger/${data}_logger_opq_ivf.fvecs"
 
+    log_file="./logger/${data}/OPQ-IVF-Linear-time.log"
+    start_time=$(date +%s)
    ./cmake-build-debug/src/logger_ivf_opq -d 2 -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -b ${code_book} -k ${K} -s ${efSearch} -e ${opq_recall}
 
    python ./data/linear.py -d ${data} -m "opq" -i "ivf" -k ${K}
 
    ./cmake-build-debug/src/logger_ivf_opq -d 2 -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -b ${code_book} -k ${K} -s ${efSearch} -e ${opq_recall}
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+    echo "OPQ IVF Linear with ${K} time: ${duration}(s)" | tee -a ${log_file}
+
 
    index="${index_path}/${data}_ivf2_pca.index"
    linear="${index_path}/linear/linear_ivf_pca_${K}.log"
    trans="${index_path}/${data}_pca_matrix.fvecs"
    logger="./logger/${data}_logger_pca_ivf.fvecs"
 
+    log_file="./logger/${data}/PCA-IVF-Linear-time.log"
+    start_time=$(date +%s)
    ./cmake-build-debug/src/logger_ivf_pca -d 2 -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_recall}
 
    python ./data/linear.py -d ${data} -m "pca" -i "ivf" -k ${K}
 
    ./cmake-build-debug/src/logger_ivf_pca -d 2 -i ${index} -q ${learn} -g ${ground} -t ${trans} -l ${linear} -o ${logger} -k ${K} -s ${efSearch} -e ${pca_recall}
-
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+    echo "PCA IVF Linear with ${K} time: ${duration}(s)" | tee -a ${log_file}
  done
 
 done
