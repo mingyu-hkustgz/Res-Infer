@@ -25,7 +25,7 @@ if __name__ == "__main__":
         query_path = os.path.join(path, f'{dataset}_learn.fvecs')
         base = fvecs_read(base_path)
         learn = fvecs_read(query_path)
-        learn_num = int(1e5)
+        learn_num = int(1e4)
         learn_data = learn[:learn_num]
         gt = do_compute_gt(base, learn, topk=100)
         save_path = os.path.join(source, f'{dataset}')

@@ -23,7 +23,16 @@
 ## Reproduction
 1. use ./data/compute_gt.py compute the learning query groundtruth
 2. set the **store_path** and dataset in set.sh
-3. run ```bash run.sh``` 
-
+3. run ```bash run.sh```
+## Hardware Notice
+* We have implemented an experimental environment under different hardware acceleration. 
+* Specifically, if you use SIMD-AVX, please set the definition of Cmakelist to 
+```
+-std=c++17 -Ofast -march=core-avx2 -mavx512f -fpic -fopenmp -ftree-vectorize -fexceptions
+```
+* To disable SIMD, we add executable target with different setting, please set the definition of Cmakelist to
+```
+-std=c++17 -O3
+```
 ## Notice
 1. The code is fork from https://github.com/gaoj0017/ADSampling we add multiprocess for fast index
