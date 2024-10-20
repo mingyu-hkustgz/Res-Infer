@@ -30,9 +30,13 @@
 ```
 -std=c++17 -Ofast -march=core-avx2 -mavx512f -fpic -fopenmp -ftree-vectorize -fexceptions
 ```
-* To disable SIMD, we add executable target with different setting, please set the definition of Cmakelist to
+* To disable SIMD, we add an executable target with different settings, please set the definition of Cmakelist to
 ```
 -std=c++17 -O3
 ```
+and comment out the corresponding executable target such as "search_ivf_512" or "search_hnsw_512".
+## Baseline Notice
+* We recommend that you test it under the corresponding settings, i.e. without SIMD acceleration - ADsampling, with SIMD acceleration - FINGER.
+* The FINGER implemented in this project is mainly referenced by https://github.com/CaucherWang/Fudist and is still under review. Please use the original code https://github.com/Patrick-H-Chen/FINGER for evaluation (The comparison in our paper).
 ## Notice
-1. The code is fork from https://github.com/gaoj0017/ADSampling we add multiprocess for fast index
+1. The code is forked from https://github.com/gaoj0017/ADSampling we add multiprocess for fast index
