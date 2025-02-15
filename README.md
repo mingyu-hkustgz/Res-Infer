@@ -1,4 +1,4 @@
-
+# Effective and General Distance Computation for Approximate Nearest Neighbor Search (ICDE 2025)
 ## Prerequisites
 **C++ require:**
 * Eigen 
@@ -40,3 +40,14 @@ and comment out the corresponding executable target such as "search_ivf_512" or 
 * The FINGER implemented in this project is mainly referenced by https://github.com/CaucherWang/Fudist and is still under review. Please use the original code https://github.com/Patrick-H-Chen/FINGER for evaluation (The comparison in our paper).
 ## Notice
 1. The code is forked from https://github.com/gaoj0017/ADSampling we add multiprocess for fast index
+
+## Reference
+Reference to cite when you use this paper or code in a research paper:
+```
+@article{Yang2024EffectiveAG,
+  title={Effective and General Distance Computation for Approximate Nearest Neighbor Search},
+  author={Mingyu Yang and Wentao Li and Jiabao Jin and Xiaoyao Zhong and Xiangyu Wang and Zhitao Shen and Wei Jia and Wei Wang},
+  year={2024},
+  url={https://arxiv.org/abs/2404.16322}
+}
+```
