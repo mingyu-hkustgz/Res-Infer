@@ -44,10 +44,12 @@ and comment out the corresponding executable target such as "search_ivf_512" or 
 ## Reference
 Reference to cite when you use this paper or code in a research paper:
 ```
-@article{Yang2024EffectiveAG,
+@inproceedings{yang2025effective,
   title={Effective and General Distance Computation for Approximate Nearest Neighbor Search},
-  author={Mingyu Yang and Wentao Li and Jiabao Jin and Xiaoyao Zhong and Xiangyu Wang and Zhitao Shen and Wei Jia and Wei Wang},
-  year={2024},
-  url={https://arxiv.org/abs/2404.16322}
+  author={Yang, Mingyu and Li, Wentao and Jin, Jiabao and Zhong, Xiaoyao and Wang, Xiangyu and Shen, Zhitao and Jia, Wei and Wang, Wei},
+  booktitle={2025 IEEE 41st International Conference on Data Engineering (ICDE)},
+  pages={1098--1110},
+  year={2025},
+  organization={IEEE}
 }
 ```
